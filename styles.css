@@ -1,0 +1,381 @@
+/* Book Desk */
+.rdesk-host { padding: 0 !important; overflow: hidden !important; }
+.rdesk-host > div:not(.rd-loading) { height: 100%; }
+.rd-loading { padding: 40px 24px; color: var(--text-muted); text-align: center; }
+.rd-stub p { max-width: 46ch; margin: 0 auto 16px; line-height: 1.8; color: var(--text-normal); }
+.rd-stub-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.rdesk {
+  --rd-desk: #a9794d; --rd-desk-2: #8c5f38; --rd-grain: rgba(62, 34, 12, .13); --rd-lamp: rgba(255, 236, 200, .28);
+  --rd-paper: #f7f1e3; --rd-paper-line: #cdbf9f; --rd-endpaper: #cfc2a3;
+  --rd-cover: #2f4a3f; --rd-cover-2: #243a31;
+  --rd-sticky-y: #f6dc6e; --rd-sticky-p: #f3b1a3; --rd-sticky-b: #b5d2ec; --rd-sticky-g: #c3e0a4;
+  --rd-card: #fffdf7; --rd-card-line: #c4d7ea; --rd-card-margin: #e2a19b; --rd-note-ink: #2a2419;
+  --rd-shadow: rgba(45, 24, 8, .42);
+  --rd-hand: "Noteworthy", "Bradley Hand", "Segoe Print", var(--font-text);
+  display: flex; flex-direction: column; height: 100%;
+}
+.theme-dark .rdesk {
+  --rd-desk: #2d2018; --rd-desk-2: #1b130e; --rd-grain: rgba(0, 0, 0, .28); --rd-lamp: rgba(255, 196, 120, .10);
+  --rd-paper: #ebe2ce; --rd-paper-line: #b3a687; --rd-endpaper: #b7aa8b;
+  --rd-cover: #2a4035; --rd-cover-2: #1c2c24;
+  --rd-sticky-y: #e8cf66; --rd-sticky-p: #e3a597; --rd-sticky-b: #a8c4de; --rd-sticky-g: #b4d196;
+  --rd-card: #efe8d8; --rd-card-line: #a9bfd4; --rd-shadow: rgba(0, 0, 0, .65);
+}
+
+/* ---------- toolbar ---------- */
+.rd-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
+  padding: 6px 12px; background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border); position: relative; z-index: 20;
+}
+.rd-group { display: flex; align-items: center; gap: 2px; }
+.rd-sep { width: 1px; height: 22px; background: var(--background-modifier-border); margin-inline: 4px; }
+.rdesk button.rd-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  border: 0; border-radius: var(--radius-s); background: transparent; box-shadow: none;
+  color: var(--text-muted); font-size: var(--font-ui-small); cursor: pointer; white-space: nowrap;
+}
+.rdesk button.rd-btn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.rdesk button.rd-btn[aria-pressed="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }
+.rd-btn [data-icon] { display: inline-flex; }
+.rd-btn svg { width: 17px; height: 17px; }
+.rdesk button.rd-swatch {
+  width: 22px; height: 22px; min-width: 0; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 2px solid var(--background-primary); box-shadow: 0 0 0 1px var(--background-modifier-border); background: var(--sc);
+}
+.rdesk button.rd-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text-normal); }
+.rd-meta { margin-inline-start: auto; display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: var(--font-ui-small); }
+.rd-name { font-style: italic; color: var(--text-normal); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; unicode-bidi: plaintext; }
+.rd-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@container (max-width: 720px) { .rd-lbl { display: none; } }
+.rdesk { container-type: inline-size; }
+
+/* ---------- desk ---------- */
+.rd-desk {
+  flex: 1; position: relative; overflow: hidden; outline: none; touch-action: none; cursor: grab;
+  background:
+    radial-gradient(ellipse 70% 60% at 45% 35%, var(--rd-lamp), transparent 70%),
+    repeating-linear-gradient(91deg, transparent 0 7px, var(--rd-grain) 7px 8px, transparent 8px 19px),
+    repeating-linear-gradient(89.4deg, transparent 0 31px, var(--rd-grain) 31px 33px, transparent 33px 57px),
+    linear-gradient(180deg, var(--rd-desk), var(--rd-desk-2));
+}
+.rd-desk.panning { cursor: grabbing; }
+.rdesk button.rd-zoom-val { min-width: 52px; justify-content: center; font-variant-numeric: tabular-nums; }
+.rd-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.rd-book { position: absolute; left: 0; top: 0; cursor: default; perspective: 2600px; perspective-origin: 50% 45%; user-select: none; -webkit-user-select: none; }
+.rd-book > * { position: absolute; }
+.rd-cover {
+  border-radius: 4px;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, transparent 2px 4px), linear-gradient(180deg, var(--rd-cover), var(--rd-cover-2));
+  box-shadow: 0 30px 40px -22px var(--rd-shadow), 0 3px 6px rgba(0,0,0,.25);
+}
+.rd-stack { cursor: pointer; background: linear-gradient(90deg, var(--sa, transparent), var(--sb, transparent)), repeating-linear-gradient(90deg, var(--rd-paper) 0 1.4px, var(--rd-paper-line) 1.4px 2.1px); }
+.rd-stack.l { clip-path: polygon(0 5px, 100% 0, 100% 100%, 0 calc(100% - 5px)); --sa: rgba(0,0,0,.18); }
+.rd-stack.r { clip-path: polygon(0 0, 100% 5px, 100% calc(100% - 5px), 0 100%); --sb: rgba(0,0,0,.18); }
+
+/* ---------- pages ---------- */
+.rd-slot { background: var(--rd-paper); overflow: visible; }
+.rd-slot::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.rd-slot.lside::before { background: linear-gradient(to left, rgba(40,25,5,.22), rgba(40,25,5,.05) 7%, transparent 16%); }
+.rd-slot.rside::before { background: linear-gradient(to right, rgba(40,25,5,.22), rgba(40,25,5,.05) 7%, transparent 16%); }
+.rd-slot.blank { background: repeating-linear-gradient(135deg, rgba(0,0,0,.035) 0 3px, transparent 3px 7px), var(--rd-endpaper); }
+.rd-page { touch-action: none; }
+.rd-cast, .rd-shade { position: absolute; inset: 0; pointer-events: none; z-index: 4; opacity: 0; }
+.rd-page.lside > .rd-cast { background: linear-gradient(to left, rgba(20,10,0,.55), transparent 70%); }
+.rd-page.rside > .rd-cast { background: linear-gradient(to right, rgba(20,10,0,.55), transparent 70%); }
+.rd-book[data-tool="read"] .rd-page { cursor: grab; }
+.rd-book[data-tool="pen"] .rd-page, .rd-book[data-tool="hl"] .rd-page { cursor: crosshair; }
+.rd-book[data-tool="erase"] .rd-page { cursor: cell; }
+.rd-book[data-tool="sticky"] .rd-page { cursor: copy; }
+.rd-leaf { transform-style: preserve-3d; transform-origin: 0 50%; will-change: transform; z-index: 10; pointer-events: none; }
+/* between turns the leaf stays laid out but unseen: showing it again must not set its pages (an EPUB chapter) anew */
+.rd-leaf.is-idle { opacity: 0; }
+.rd-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.rd-face.back { transform: rotateY(180deg); }
+.rd-face > .rd-shade { background: linear-gradient(to left, rgba(20,10,0,1), rgba(20,10,0,.25)); }
+.rd-face.back > .rd-shade { background: linear-gradient(to right, rgba(20,10,0,1), rgba(20,10,0,.25)); }
+.rd-pc { position: absolute; inset: 0; overflow: hidden; background: #fff; }
+.theme-dark .rdesk:not(.rd-paper-night):not(.rd-paper-sepia) .rd-pc { filter: brightness(.93) sepia(.08); }
+.rd-pc canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+svg.rd-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: hidden; }   /* ink stays on its page */
+svg.rd-ink path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: square; }
+
+.rd-stk-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.rd-sticky {
+  position: absolute; display: flex; flex-direction: column; pointer-events: auto;
+  background: var(--sc); color: var(--rd-note-ink); transform: rotate(var(--r, 0deg));
+  box-shadow: 0 1px 1px rgba(0,0,0,.1), 0 10px 14px -8px var(--rd-shadow);
+  font: var(--fs, 15px)/1.35 var(--rd-hand);
+  opacity: .28; transition: opacity .18s ease;   /* left alone, a sticky fades so the page shows through */
+}
+.rd-sticky:hover, .rd-sticky:focus-within, .rd-sticky.is-active { opacity: 1; }
+.rd-face .rd-sticky { pointer-events: none; }
+.rd-grip { position: absolute; top: 0; left: 0; right: 0; height: 18px; cursor: grab; background: rgba(0,0,0,.06); touch-action: none; display: flex; align-items: center; padding-left: 3px; }
+.rd-txt { flex: 1; overflow: auto; user-select: text; -webkit-user-select: text; padding: 22px 10px 10px; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.rd-resize {
+  position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; z-index: 2;
+  background: linear-gradient(135deg, transparent 52%, rgba(42,36,25,.35) 52% 58%, transparent 58% 70%, rgba(42,36,25,.35) 70% 76%, transparent 76%);
+  opacity: 0; transition: opacity .15s;
+}
+.rdesk button.rd-fs {
+  height: 15px; min-width: 0; padding: 0 4px; border: 0; border-radius: 3px; background: transparent; box-shadow: none;
+  color: rgba(42,36,25,.65); font: 600 10px/1 var(--font-interface); cursor: pointer; opacity: 0; transition: opacity .15s;
+}
+.rdesk button.rd-fs:hover { background: rgba(42,36,25,.1); }
+.rd-sticky:hover .rd-resize, .rd-sticky.is-active .rd-resize, .rd-sticky:hover .rd-fs, .rd-sticky.is-active .rd-fs,
+.rd-card:hover .rd-resize, .rd-card:focus-within .rd-resize, .rd-card:hover .rd-fs, .rd-card:focus-within .rd-fs { opacity: 1; }
+.rdesk button.rd-del {
+  border: 0; background: transparent; box-shadow: none; color: rgba(42,36,25,.55); cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 0 4px; height: 18px; min-width: 0;
+}
+.rd-sticky .rd-del { position: absolute; top: 0; right: 2px; z-index: 1; opacity: .25; }
+.rd-sticky:hover .rd-del, .rd-sticky:focus-within .rd-del { opacity: 1; }
+
+.rd-marks { inset: 0; pointer-events: none; }
+.rdesk button.rd-flag {
+  position: absolute; height: 16px; min-width: 0; border: 0; padding: 0; pointer-events: auto; cursor: pointer;
+  background: var(--sc); border-radius: 0 3px 3px 0; box-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+.rdesk button.rd-flag.l { border-radius: 3px 0 0 3px; }
+
+/* ---------- index cards ---------- */
+.rd-notes { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.rd-card {
+  --lh: calc(var(--fs, 15px) * 1.6);
+  position: absolute; width: 236px; pointer-events: auto; color: var(--rd-note-ink); cursor: default;
+  background: repeating-linear-gradient(180deg, transparent 0 calc(var(--lh) - 1px), var(--rd-card-line) calc(var(--lh) - 1px) var(--lh)) 0 26px / 100% calc(100% - 26px) no-repeat, var(--rd-card);
+  transform: rotate(var(--r, 0deg)); border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 16px 24px -14px var(--rd-shadow);
+}
+.rd-card-head { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px; border-bottom: 1px solid var(--rd-card-margin); cursor: grab; touch-action: none; font-size: 12px; }
+.rd-grow { flex: 1; }
+.rdesk button.rd-chip {
+  border: 1px solid rgba(42,36,25,.25); border-radius: 999px; background: transparent; box-shadow: none; color: var(--rd-note-ink);
+  font-size: 11.5px; line-height: 1; padding: 3px 8px; height: auto; cursor: pointer;
+}
+.rdesk .rd-card textarea {
+  display: block; width: 100%; box-sizing: border-box; resize: none;
+  border: 0; outline: none; box-shadow: none; background: transparent; color: var(--rd-note-ink);
+  font: var(--fs, 15px)/var(--lh) var(--rd-hand); padding: 0 10px 10px; border-radius: 0;
+}
+.rd-help { width: 272px; background: var(--rd-card); }
+.rd-help-body { padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.75; }
+.rd-help-body ul { margin: 0; padding-inline-start: 16px; }
+.rd-help-body kbd, .rd-help-body code { font-size: 11px; color: var(--rd-note-ink); background: rgba(42,36,25,.07); }
+
+.rd-tip {
+  position: absolute; z-index: 50; pointer-events: none;
+  background: var(--background-modifier-message, #222); color: var(--text-on-accent, #fff); border-radius: 6px; padding: 3px 8px;
+  font-size: 12px; white-space: pre-line; max-width: 300px; width: max-content; text-align: center; font-variant-numeric: tabular-nums;
+  unicode-bidi: plaintext;   /* each line takes its own direction: "p. 2" and a Persian note both read right */
+  transform: translate(-50%, calc(-100% - 10px));   /* centred on the pointer, just above its tip */
+}
+.rd-tip.touch { transform: translate(-50%, calc(-100% - 48px)); font-size: 14px; padding: 5px 10px; }
+.rd-stack-hit { cursor: pointer; touch-action: none; }
+.rd-scrub { pointer-events: none; z-index: 6; background: var(--interactive-accent); box-shadow: 0 0 0 1px rgba(255,255,255,.7); border-radius: 1px; }
+
+/* ---------- PDF++ highlights ---------- */
+.rd-hl-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; mix-blend-mode: multiply; }
+.rd-hl { position: absolute; opacity: .38; border-radius: 2px; }
+.rd-hl-preview { position: absolute; inset: 0; }
+.rd-hl.is-rubbed { opacity: .08; }
+.rd-hl-preview .rd-hl { opacity: .5; }
+.rd-book .rd-page.on-hl { cursor: pointer; }
+
+/* ---------- right-to-left books: the book is drawn mirrored, the pages' contents mirrored back ---------- */
+.rd-book.rtl { transform: scaleX(-1); }
+.rd-book.rtl .rd-pc, .rd-book.rtl .rd-hl-layer, .rd-book.rtl svg.rd-ink, .rd-book.rtl .rd-stk-layer { transform: scaleX(-1); }
+
+/* ---------- on an Excalidraw canvas the canvas is the desk ---------- */
+.rdesk.rd-embedded .rd-desk { background: transparent; }
+.rdesk.rd-embedded .rd-toolbar { padding: 4px 8px; }
+.rdesk.rd-embedded .rd-lbl { display: none; }
+
+/* ---------- the toolbar put away: a small tag keeps the page and brings it back ---------- */
+.rdesk { position: relative; }
+.rdesk button.rd-show-btn {
+  position: absolute; top: 8px; right: 10px; z-index: 25;
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 11px; border-radius: 14px;
+  background: color-mix(in srgb, var(--background-primary) 85%, transparent); backdrop-filter: blur(6px);
+  border: 1px solid var(--background-modifier-border); box-shadow: 0 4px 12px -6px var(--rd-shadow);
+  color: var(--text-muted); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.rdesk button.rd-show-btn:hover { color: var(--text-normal); }
+.rd-show-btn svg { width: 15px; height: 15px; }
+.rdesk button.rd-hide-btn { padding: 0 6px; }
+
+.rdesk .rd-toolbar[hidden], .rdesk button.rd-show-btn[hidden] { display: none !important; }
+
+/* ---------- contents panel and the PDF's own links ---------- */
+.rd-toc {
+  position: absolute; left: 0; bottom: 0; z-index: 30; width: min(320px, 86%);
+  display: flex; flex-direction: column; background: var(--background-primary);
+  border-right: 1px solid var(--background-modifier-border); box-shadow: 8px 0 24px -16px var(--rd-shadow);
+}
+.rdesk .rd-toc[hidden] { display: none; }
+.rd-toc-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--background-modifier-border); font-weight: var(--font-semibold); font-size: var(--font-ui-small); }
+.rdesk button.rd-toc-close { border: 0; background: transparent; box-shadow: none; font-size: 18px; line-height: 1; padding: 0 6px; color: var(--text-muted); cursor: pointer; }
+.rd-toc-list { overflow-y: auto; padding: 4px 0 12px; }
+.rdesk button.rd-toc-item {
+  display: flex; width: 100%; gap: 10px; align-items: baseline; justify-content: space-between; text-align: start;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; height: auto; padding: 6px 12px 6px 10px;
+  color: var(--text-normal); font-size: var(--font-ui-small); line-height: 1.35; cursor: pointer;
+}
+.rdesk button.rd-toc-item:hover { background: var(--background-modifier-hover); }
+.rdesk button.rd-toc-item.is-current { background: var(--background-modifier-active-hover, var(--background-modifier-hover)); color: var(--text-accent); }
+.rd-toc-title { flex: 1; white-space: normal; }
+.rd-toc-page { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.rd-toc-empty { padding: 16px 14px; color: var(--text-muted); font-size: var(--font-ui-small); }
+
+/* ---------- sticky-note flags: one tag of the desk's own, a small step out when pointed at ---------- */
+.rdesk button.rd-flag { transition: transform .12s ease, filter .12s ease; }
+.rdesk button.rd-flag.r:hover { transform: translateX(5px); filter: brightness(1.04) saturate(1.15); }
+.rdesk button.rd-flag.l:hover { transform: translateX(-5px); filter: brightness(1.04) saturate(1.15); }
+.rd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- flags as paper tabs: the note's title on the tip ---------- */
+.rdesk button.rd-flag {
+  display: flex; align-items: center; overflow: hidden; padding: 0 4px;
+  border-top: 1px solid rgba(255,255,255,.35); border-bottom: 1px solid rgba(0,0,0,.08);
+}
+.rdesk button.rd-flag.r { justify-content: flex-end; }
+.rdesk button.rd-flag.l { justify-content: flex-start; }
+.rd-flag-t {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 9.5px/1 var(--font-interface); color: rgba(42,36,25,.78); pointer-events: none;
+}
+.rd-book.rtl .rd-flag-t { transform: scaleX(-1); }   /* mirrored back in a right-to-left book */
+.rd-txt::first-line { font-weight: 700; }            /* a sticky's first line is its title */
+
+/* ---------- a turning leaf shows one side only, highlights included ---------- */
+.rd-leaf:not(.past-half) .rd-face.back, .rd-leaf.past-half .rd-face.front { visibility: hidden; }
+.rd-face .rd-hl-layer, .rd-face svg.rd-ink path.hl { mix-blend-mode: normal; }
+.rd-face .rd-hl { opacity: .3; }
+
+/* ---------- the Select tool: the book's own text over the page ---------- */
+.rd-text-wrap {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  transform: scaleY(var(--sy, 1)); transform-origin: 50% 0;
+  user-select: text; -webkit-user-select: text;
+}
+.rd-book.rtl .rd-text-wrap { transform: scaleX(-1) scaleY(var(--sy, 1)); }
+.rd-book[data-tool="select"] .rd-text-wrap { pointer-events: auto; }
+.rd-book[data-tool="select"] .rd-page { cursor: text; }
+.rd-text-wrap .textLayer ::selection { background: color-mix(in srgb, var(--interactive-accent) 35%, transparent); }
+.rdesk .rd-selbar {
+  position: absolute; z-index: 40; display: flex; gap: 2px; padding: 3px;
+  transform: translate(-50%, calc(-100% - 8px));
+  background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 8px;
+  box-shadow: 0 8px 20px -10px var(--rd-shadow);
+}
+.rdesk .rd-selbar[hidden] { display: none; }
+.rdesk .rd-selbar button {
+  height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; box-shadow: none;
+  font-size: var(--font-ui-small); color: var(--text-normal); cursor: pointer; white-space: nowrap;
+}
+.rdesk .rd-selbar button:hover { background: var(--background-modifier-hover); }
+
+/* ---------- page colour ---------- */
+.rd-pageface { position: absolute; inset: 0; }
+.rdesk.rd-paper-sepia { --rd-paper: #f1e6cc; --rd-paper-line: #c7b48b; --rd-endpaper: #d9c69d; }
+.rdesk.rd-paper-sepia .rd-pageface { filter: sepia(.5) saturate(1.1) brightness(.97) contrast(.94); }
+.rdesk.rd-paper-night {
+  --rd-paper: #2a2722; --rd-paper-line: #4b463c; --rd-endpaper: #2f2b25;
+  --rd-desk: #1b1511; --rd-desk-2: #110c09; --rd-lamp: rgba(255, 196, 120, .07);
+  --rd-cover: #1f2e28; --rd-cover-2: #15201b;
+}
+/* the whole page turned over at once: paper dark, ink light, a highlight a deep band behind light words */
+.rdesk.rd-paper-night .rd-pageface { filter: invert(1) hue-rotate(180deg) brightness(.86) contrast(.92); }
+.rdesk.rd-paper-night .rd-sticky { filter: brightness(.82); }
+.rdesk.rd-paper-night .rd-card { filter: brightness(.85); }
+
+/* ---------- search and notes panels ---------- */
+.rd-find, .rd-annos {
+  position: absolute; bottom: 0; z-index: 30; width: min(340px, 90%);
+  display: flex; flex-direction: column; background: var(--background-primary);
+  box-shadow: 0 0 24px -14px var(--rd-shadow);
+}
+.rd-find { left: 0; border-right: 1px solid var(--background-modifier-border); }
+.rd-annos { right: 0; border-left: 1px solid var(--background-modifier-border); }
+.rdesk .rd-find[hidden], .rdesk .rd-annos[hidden] { display: none; }
+.rd-find-head { display: flex; gap: 6px; align-items: center; padding: 8px 8px 6px 10px; border-bottom: 1px solid var(--background-modifier-border); }
+.rdesk .rd-find-input { flex: 1; min-width: 0; }
+.rd-find-bar { display: flex; align-items: center; gap: 4px; padding: 4px 8px 4px 12px; font-size: var(--font-ui-smaller); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.rdesk .rd-find-bar button, .rdesk button.rd-find-close, .rdesk button.rd-annos-close {
+  border: 0; background: transparent; box-shadow: none; color: var(--text-muted); cursor: pointer; padding: 0 7px; height: 24px; font-size: 15px;
+}
+.rdesk .rd-find-bar button:hover { background: var(--background-modifier-hover); }
+.rd-find-list, .rd-annos-list { overflow-y: auto; padding: 2px 0 12px; }
+.rdesk button.rd-find-item, .rdesk button.rd-anno {
+  display: flex; gap: 8px; width: 100%; align-items: flex-start; text-align: start; white-space: normal;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; height: auto; padding: 7px 12px;
+  font-size: var(--font-ui-small); line-height: 1.45; color: var(--text-normal); cursor: pointer;
+}
+.rdesk button.rd-find-item:hover, .rdesk button.rd-anno:hover { background: var(--background-modifier-hover); }
+.rdesk button.rd-find-item.is-current { background: var(--background-modifier-active-hover, var(--background-modifier-hover)); }
+.rd-find-page, .rd-anno-page { flex: none; min-width: 44px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.rd-find-ctx { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rd-find-ctx mark { background: rgba(255, 150, 0, .35); color: inherit; border-radius: 2px; padding: 0 1px; }
+.rd-annos-filters { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--background-modifier-border); }
+.rdesk button.rd-chip-filter {
+  height: 24px; padding: 0 9px; border-radius: 12px; border: 1px solid var(--background-modifier-border);
+  background: transparent; box-shadow: none; color: var(--text-muted); font-size: var(--font-ui-smaller); cursor: pointer;
+}
+.rdesk button.rd-chip-filter[aria-pressed="true"] { background: var(--interactive-accent); color: var(--text-on-accent); border-color: transparent; }
+.rd-anno-dot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--sc, var(--text-faint)); }
+.rd-anno-ink .rd-anno-dot { background: #1f3a70; }
+.rd-anno-card .rd-anno-dot { background: var(--rd-card); box-shadow: inset 0 0 0 1px var(--background-modifier-border); border-radius: 2px; }
+.rd-anno-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rd-anno-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rd-anno-sub { font-size: var(--font-ui-smaller); color: var(--text-faint); }
+/* matches on the page */
+.rd-found-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.rd-found { position: absolute; border-radius: 2px; background: rgba(255, 140, 0, .25); box-shadow: 0 0 0 1px rgba(255, 140, 0, .55); }
+.rd-found.is-current { background: rgba(255, 120, 0, .45); box-shadow: 0 0 0 2px rgba(225, 85, 0, .9); }
+/* the thing a click in the notes panel leads to blinks for a moment */
+@keyframes rd-blink { 0%, 100% { filter: none; } 35%, 65% { filter: brightness(1.12) drop-shadow(0 0 7px rgba(255, 160, 0, .95)); } }
+.rd-blink { animation: rd-blink .6s ease-in-out 3; }
+
+/* ---------- EPUB pages: the book's own text, set in one column per page ---------- */
+.rd-epub-page { position: absolute; inset: 0; overflow: hidden; background: #fffefb; color: #1d1b18; }
+.theme-dark .rdesk:not(.rd-paper-night):not(.rd-paper-sepia) .rd-epub-page { filter: brightness(.93) sepia(.08); }
+.rd-book.rtl .rd-epub-page { transform: scaleX(-1); }
+.rd-epub-clip { position: absolute; overflow: hidden; overflow: clip; contain: layout paint; }   /* whatever the book's styles say, nothing leaves the page */
+.rd-epub-measure { position: fixed; left: -40000px; top: 0; width: var(--epub-w); height: var(--epub-colh); overflow: hidden; visibility: hidden; }
+/* every property that moves a line is fixed here, so the pages measured off-screen are the pages shown */
+.rd-epub-flow {
+  width: var(--epub-w); height: var(--epub-colh); column-width: var(--epub-w); column-gap: var(--epub-gap); column-fill: auto;
+  direction: ltr; writing-mode: horizontal-tb;   /* columns run left to right; the text inside keeps its own direction */
+  font: 400 var(--epub-fs)/1.5 var(--rd-epub-font, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif);
+  color: #1d1b18; text-align: justify; hyphens: auto; -webkit-hyphens: auto;
+  letter-spacing: normal; word-spacing: normal; text-transform: none; text-indent: 0; white-space: normal;
+  overflow-wrap: break-word; font-variant: normal; font-feature-settings: normal; font-kerning: normal; text-rendering: optimizeLegibility;
+  user-select: none; -webkit-user-select: none; cursor: inherit; -webkit-font-smoothing: antialiased;
+}
+.rd-epub-flow[data-rtl] > .rd-epub-chapter:not([dir]) { direction: rtl; }
+.rd-epub-chapter { margin: 0; padding: 0; }
+.rd-epub-flow img, .rd-epub-flow svg { max-width: 100% !important; max-height: var(--epub-colh) !important; object-fit: contain; break-inside: avoid; }
+.rd-epub-flow img { height: auto; }
+.rd-epub-flow table { max-width: 100%; }
+.rd-epub-flow pre { white-space: pre-wrap; }
+.rd-epub-flow .rd-epub-link { color: #2a5d9f; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
+.rd-book[data-tool="select"] .rd-epub-flow { user-select: text; -webkit-user-select: text; cursor: text; }
+.rd-epub-flow ::selection { background: color-mix(in srgb, var(--interactive-accent) 35%, transparent); }
+.rd-epub-head, .rd-epub-folio { position: absolute; left: 40px; right: 40px; text-align: center; color: #8a8478; font: 11px/1.2 "Iowan Old Style", Georgia, serif; pointer-events: none; }
+.rd-epub-head { top: 20px; font-style: italic; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-epub-folio { bottom: 22px; font-variant-numeric: oldstyle-nums; }
+.rd-epub-page.is-picture { background: #fff; }
+.rd-epub-page.is-picture img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* highlights and search matches are marks in the text */
+.rd-epub-flow mark.rd-ehl { background: color-mix(in srgb, var(--hl, #ffd000) 45%, transparent); color: inherit; border-radius: 2px; padding: 0; }
+.rd-epub-flow mark.rd-ehl.is-rubbed { background: transparent; }
+.rd-epub-flow mark.rd-efound { background: rgba(255, 140, 0, .28); color: inherit; box-shadow: 0 0 0 1px rgba(255, 140, 0, .55); border-radius: 2px; padding: 0; }
+.rd-epub-flow mark.rd-efound.is-current { background: rgba(255, 120, 0, .5); box-shadow: 0 0 0 2px rgba(225, 85, 0, .9); }
+.rd-book .rd-page.on-hl .rd-epub-flow { cursor: pointer; }
+.rdesk .rd-toolbar [hidden] { display: none !important; }
+.rdesk .rd-textsize .rd-btn { font-weight: 600; min-width: 30px; }
+.rdesk.rd-setting .rd-book { opacity: .55; transition: opacity .2s; }
+.rdesk.rd-setting .rd-desk { cursor: progress; }

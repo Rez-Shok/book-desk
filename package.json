@@ -1,0 +1,24 @@
+{
+  "name": "book-desk",
+  "version": "1.0.0",
+  "description": "Read PDF and EPUB books in Obsidian like a paper book.",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "lint": "eslint .",
+    "test": "node --test tests/"
+  },
+  "author": "Reza Shokri",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.0",
+    "eslint-plugin-obsidianmd": "^0.5.1",
+    "obsidian": "^1.14.4",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.72.0"
+  }
+}
