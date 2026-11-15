@@ -3,14 +3,13 @@
 export const DEFAULT_SETTINGS = {
   helpSeen: false,
   dataFolder: 'Book Desk',         // each book's desk: page, ink, stickies, cards, view
-  notesFolder: '',                 // the book's note is a note in this folder that links to the book ('' = any note)
+  notesFolder: '',                 // where new book notes are made; any note in it that links to a book is that book's note
   pageProperty: '',                // property of the book's note that follows the current page ('' = off)
   totalPagesProperty: '',
   highlightTarget: 'note',         // new highlights: 'note' = into the book's note, 'clipboard' = copy the link only
   highlightHeading: 'Highlights',  // section of the book's note that new highlights go under
   paper: 'paper',                  // page colour: paper, sepia or night
-  epubTextSize: 16,                // an EPUB's text size, in book units (a page is 440 wide)
-  standInMarker: ''                // a small file holding this text is a stand-in for a book kept elsewhere ('' = off)
+  epubTextSize: 16                 // an EPUB's text size, in book units (a page is 440 wide)
 };
 
 const PAPERS = new Set(['paper', 'sepia', 'night']);
@@ -37,7 +36,6 @@ export function readSettings(raw, normalizePath) {
     highlightTarget: r.highlightTarget === 'clipboard' ? 'clipboard' : 'note',
     highlightHeading: String(r.highlightHeading == null ? '' : r.highlightHeading).replace(/[\r\n]+/g, ' ').replace(/^#+\s*/, '').trim().slice(0, 120) || d.highlightHeading,
     paper: PAPERS.has(r.paper) ? r.paper : d.paper,
-    epubTextSize: Number.isFinite(size) ? Math.max(11, Math.min(30, Math.round(size))) : d.epubTextSize,
-    standInMarker: String(r.standInMarker == null ? '' : r.standInMarker).trim().slice(0, 200)
+    epubTextSize: Number.isFinite(size) ? Math.max(11, Math.min(30, Math.round(size))) : d.epubTextSize
   };
 }

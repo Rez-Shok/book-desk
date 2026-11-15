@@ -74,7 +74,7 @@ try {
   const desk = H.createDesk(root, { epub: book, title: 'T', state: null, save: () => {}, onSpread: () => {}, notice: () => {}, helpSeen: () => seen, markHelpSeen: () => { seen = true; }, textSize: () => 16 });
   await desk.start();
   const guide = root.querySelector('.rd-help');
-  ok('a new reader gets the guide, written out in full', guide && guide.querySelectorAll('li').length === 20 && guide.querySelectorAll('kbd').length > 8 && /Turn pages:/.test(guide.textContent), guide && guide.querySelectorAll('li').length);
+  ok('a new reader gets the guide, written out in full (Excalidraw left out when it is not there)', guide && guide.querySelectorAll('li').length === 19 && !/Excalidraw/.test(guide.textContent) && guide.querySelectorAll('kbd').length > 8 && /Turn pages:/.test(guide.textContent), guide && guide.querySelectorAll('li').length);
   guide.querySelector('.rd-del').click();
   ok('and can put it away', seen && !root.querySelector('.rd-help'), seen);
   desk.destroy(); box.remove();

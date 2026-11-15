@@ -15,7 +15,7 @@ import { makeEpubFlow, epubTextNodes, layoutEpub, epubPageOf, epubOffsetOf, epub
            notice(msg), helpSeen(), markHelpSeen(),
            palette(), colorHex(name), highlights(), createHighlight(h), openSource(h, event),
            sourceLabel(h), defaultRtl(), deleteHighlights(list), toolbarHidden(), setToolbarHidden(bool), quoteFor(h),
-           paper(), setPaper(name), textSize(), setTextSize(px) }
+           paper(), setPaper(name), textSize(), setTextSize(px), excalidraw() }
 --------------------------------------------------------------------------- */
 export function createDesk(root, host) {
   const W = root.ownerDocument.defaultView, D = root.ownerDocument;
@@ -57,7 +57,15 @@ export function createDesk(root, host) {
   let highlights = (host.highlights && host.highlights()) || new Map();   // page index -> PDF++ highlights
   let epubHl = epub ? highlights : null;                                  // an EPUB's, by chapter
   if (epub) highlights = new Map();
-  const save = () => { if (epub && L) keepAnchors(); host.save(S); if (typeof refreshAnnosSoon === 'function') refreshAnnosSoon(); };
+  // a place the desk file remembers past the end of this PDF (a shorter file: another edition, a placeholder):
+  // it is kept as it was, and the book's note keeps its page, until a page is turned here
+  let held = null;
+  const save = () => {
+    if (epub && L) keepAnchors();
+    if (held && S.spread !== held.shown) held = null;
+    host.save(held ? { ...S, spread: held.spread } : S);
+    if (typeof refreshAnnosSoon === 'function') refreshAnnosSoon();
+  };
 
   /* ---------- spreads ----------
      Spread s shows page 2s-1 on the left and 2s on the right (page 0 = cover, alone on the right).
@@ -734,7 +742,7 @@ export function createDesk(root, host) {
     if (!epub && typeof paintFoundMarks === 'function') paintFoundMarks();   // an EPUB page brings its marks along
     if (typeof markToc === 'function') markToc();
     save();
-    host.onSpread(S, shownPages(s), n);
+    if (!held) host.onSpread(S, shownPages(s), n);
   }
   /* Sticky-note flags on the page edges, like paper tabs: every flag has the same length from its own page,
      so one on a page deep in the stack sticks out further than one on a page close by; each stays at its
@@ -1728,7 +1736,7 @@ export function createDesk(root, host) {
     const el = W.createDiv();
     el.className = 'rd-card rd-help';
     el.style.left = pos.x + 'px'; el.style.top = pos.y + 'px'; el.style.setProperty('--r', '1deg');
-    buildGuide(el);
+    buildGuide(el, { excalidraw: !!(host.excalidraw && host.excalidraw()) });
     el.querySelector('.rd-del').addEventListener('click', () => { host.markHelpSeen(); el.remove(); });
     dragByHead(el, el.querySelector('.rd-card-head'), pos);
     return el;
@@ -2225,6 +2233,10 @@ export function createDesk(root, host) {
       PH = Math.round(clamp(PW * vp.height / vp.width, 360, 820));
     }
     if (destroyed) return;
+    if (!epub && (S.spread || 0) > leaves()) {
+      held = { spread: S.spread, shown: leaves() };
+      host.notice('This file has fewer pages than the book this desk was used with. Your place is kept until you turn a page here.');
+    }
     S.spread = clamp(S.spread || 0, 0, leaves());
     els.name.textContent = host.title;
     if (S.rtl === undefined) { try { S.rtl = !!(host.defaultRtl && await host.defaultRtl()); } catch { S.rtl = false; } }

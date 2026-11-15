@@ -10,13 +10,13 @@ export class DeskSettingTab extends PluginSettingTab {
     return [
       {
         name: 'Desk folder',
-        desc: 'Each book gets a .desk file here: the page you are on, pen marks, sticky notes, cards and where you were looking. Drag a .desk file onto an Excalidraw drawing to read the book there. Existing desks are not moved when you change this.',
+        desc: 'Each book gets a .desk file here: the page you are on, pen marks, sticky notes, cards and where you were looking. Existing desks are not moved when you change this, and are still found. With Obsidian Sync, turn on “Sync all other types” so desks reach your other devices.' + (window.ExcalidrawAutomate ? ' Drag a .desk file onto an Excalidraw drawing to read the book there.' : ''),
         control: { type: 'folder', key: 'dataFolder', placeholder: DEFAULT_SETTINGS.dataFolder, defaultValue: DEFAULT_SETTINGS.dataFolder }
       },
       {
         name: 'Book notes folder',
-        desc: 'A book’s note is a note in this folder that links to the PDF or EPUB. Leave empty to use any note that links to it.',
-        control: { type: 'folder', key: 'notesFolder', placeholder: 'Any folder' }
+        desc: 'A book’s note holds its highlights. It is a note whose properties link to the book, or any note in this folder that links to it. When a book has none, its first highlight offers to make one, here. Leave empty to make new notes where Obsidian puts new notes.',
+        control: { type: 'folder', key: 'notesFolder', placeholder: 'Where new notes go' }
       },
       {
         name: 'Current page property',
@@ -48,15 +48,6 @@ export class DeskSettingTab extends PluginSettingTab {
             new Notice('The guide will be on the desk next time you open a book.');
           }));
         }
-      },
-      {
-        type: 'group',
-        heading: 'Advanced',
-        items: [{
-          name: 'Stand-in marker',
-          desc: 'For libraries that keep large books outside the vault and leave a small stand-in file in their place. When a book file is small and contains this text, the desk offers to open the file itself instead of showing the stand-in as a book. Leave empty if you do not use stand-ins.',
-          control: { type: 'text', key: 'standInMarker', placeholder: 'Off' }
-        }]
       }
     ];
   }

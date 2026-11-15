@@ -49,6 +49,22 @@ function epub(chapters, extra = [], opts = {}) {
     ...extra.map(f => ({ name: 'OEBPS/' + f.name, data: f.data, method: f.method, usize: f.usize }))
   ]);
 }
+// a plain PDF of `n` pages, each with one line of text
+function pdf(n) {
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(' ')}] /Count ${n} >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  for (let i = 0; i < n; i++) {
+    const content = `BT /F1 18 Tf 72 700 Td (Page ${i + 1} of the test book) Tj ET`;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + 2 * i} 0 R >>`);
+    objs.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  }
+  let out = '%PDF-1.4\n';
+  const offs = objs.map((o, i) => { const at = out.length; out += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('')
+    + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return enc.encode(out);
+}
 // a desk on its own, over the window, with a stand-in for everything the plugin would give it
 async function mountDesk(book, more = {}) {
   let style = document.getElementById('book-desk-test-style');
@@ -79,4 +95,4 @@ const tap = async (x, y) => {
   wc.sendInputEvent({ type: 'mouseUp', x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 });
   await wait(150);
 };
-return { H, zip, epub, xhtml, PNG, mountDesk, wait, T, fs, concat, bytes, awake, tap };
+return { H, zip, epub, pdf, xhtml, PNG, mountDesk, wait, T, fs, concat, bytes, awake, tap };

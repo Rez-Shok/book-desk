@@ -14,7 +14,7 @@ window.addEventListener('error', onErr); window.addEventListener('unhandledrejec
 const dir = 'book-desk-test-' + Date.now().toString(36), mine = [];
 const keep = P.settings, realSave = P.saveSettings;
 P.saveSettings = async () => {};   // nothing of the test reaches the settings file
-P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, pageProperty: 'current_page', totalPagesProperty: 'total_pages', highlightTarget: 'note', highlightHeading: 'Highlights', standInMarker: 'TEST-STAND-IN' };
+P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, pageProperty: 'current_page', totalPagesProperty: 'total_pages', highlightTarget: 'note', highlightHeading: 'Highlights' };
 const para = n => `<p>${'The quick brown fox jumps over the lazy dog near the quiet river bank. '.repeat(n)}</p>`;
 const bytes = epub([
   { name: 'c1.xhtml', title: 'One ]] | <b>bad</b>', body: `<body><h1>One</h1>${para(6).repeat(10)}</body>` },
@@ -22,6 +22,11 @@ const bytes = epub([
 ], [], { title: 'Test Book' });
 F.awake(true);
 const viewOf = leaf => leaf.view;
+const ab = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+const modalButton = text => [...document.querySelectorAll('.modal-container button')].find(b => b.textContent === text);
+const fmOf = f => { const c = app.metadataCache.getFileCache(f); return (c && c.frontmatter) || {}; };
+const settle = q => Promise.race([q, wait(6000).then(() => 'timeout')]);   // an answer, or 'timeout' if the question never closed
+const quote = { ci: 0, a: 5, b: 20, colorName: 'Yellow', text: 'a quote', label: 'One' };
 const openDesk = async file => { const leaf = await P.openBook(file); mine.push(leaf); await until(() => viewOf(leaf).ready || leaf.view.contentEl.querySelector('.rd-stub, .rd-loading:not(:empty)') && !viewOf(leaf).desk && leaf.view.contentEl.querySelector('.rd-stub')); return leaf; };
 try {
   await app.vault.createFolder(dir);
@@ -84,9 +89,6 @@ try {
   ok('a renamed book keeps its desk', !!moved && (await P.deskFileFor(book)) === moved, app.vault.getFiles().filter(f => f.path.startsWith(dir)).map(f => f.path));
 
   // ---- files the desk cannot open ----
-  const standIn = await app.vault.create(`${dir}/Stand In.pdf`, '%PDF-1.4\nTEST-STAND-IN\n');
-  const l3 = await openDesk(standIn);
-  ok('a stand-in is named as one, with a way on', !viewOf(l3).desk && /stand-in/.test(viewOf(l3).contentEl.textContent) && viewOf(l3).contentEl.querySelectorAll('button').length === 2, viewOf(l3).contentEl.textContent);
   const lost = await app.vault.create(`${dir}/desks/Lost.desk`, JSON.stringify({ book: `${dir}/gone.pdf`, spread: 3 }));
   const l4 = await openDesk(lost);
   ok('a desk whose book is gone says so', !viewOf(l4).desk && /not where it was/.test(viewOf(l4).contentEl.textContent), viewOf(l4).contentEl.textContent);
@@ -97,11 +99,100 @@ try {
   const l6 = await P.openBook(junk); mine.push(l6);
   ok('a damaged book gives a clear message', await until(() => /could not be opened on the desk: .*(damaged|not an EPUB)/i.test(viewOf(l6).contentEl.textContent), 5000), viewOf(l6).contentEl.textContent);
 
+  // ---- which note is a book's note ----
+  P.settings = { ...P.settings, notesFolder: `${dir}/notes` };
+  await app.vault.createFolder(`${dir}/other`);
+  const b2 = await app.vault.createBinary(`${dir}/other/Book Two.epub`, ab(bytes));
+  await app.vault.create(`${dir}/other/A daily note.md`, 'Read some of [[Book Two.epub]] today.\n');
+  const card2 = await app.vault.create(`${dir}/other/Book Two card.md`, '---\nsource: "[[Book Two.epub]]"\n---\n');
+  ok('outside the notes folder, the note whose property links to the book is its note', await until(() => P.cardFor(b2) === card2), P.cardFor(b2) && P.cardFor(b2).path);
+  await app.fileManager.processFrontMatter(card2, f => { delete f.source; });
+  ok('a note that only mentions the book is not its note', await until(() => P.cardFor(b2) === null), P.cardFor(b2) && P.cardFor(b2).path);
+
+  // ---- a book without a note: the first highlight asks ----
+  const b3 = await app.vault.createBinary(`${dir}/other/Book Three.epub`, ab(bytes));
+  let asked = P.createHighlight(b3, quote);
+  let btn = await until(() => modalButton('Make a note'), 3000);
+  ok('the question offers to make a note, to choose one, or only to copy', !!btn && !!modalButton('Choose a note…') && !!modalButton('Only copy it'), document.querySelector('.modal-container') && document.querySelector('.modal-container').textContent);
+  if (btn) btn.click();
+  let res = await settle(asked);
+  const made3 = app.vault.getFileByPath(`${dir}/notes/Book Three.md`), t3 = made3 ? await app.vault.read(made3) : '';
+  ok('"Make a note" makes one in the notes folder, linked from a property, with the highlight', res === true && /^---\nbook: "\[\[Book Three\.epub\]\]"\n---\n/.test(t3) && /## Highlights[\s\S]*chapter=1&selection=5,20/.test(t3), [res, t3]);
+  ok('and it is the book’s note from then on', await until(() => made3 && P.cardFor(b3) === made3 && P.linksFromProperty(made3.path, b3)), '');
+  asked = P.createHighlight(b3, { ...quote, a: 30, b: 40 });
+  await wait(400);
+  let again = !!modalButton('Make a note');
+  if (again) modalButton('Only copy it').click();
+  res = await settle(asked);
+  ok('a second highlight goes straight into it', !again && res === true && /selection=30,40/.test(await app.vault.read(made3)), [again, res]);
+
+  const b4 = await app.vault.createBinary(`${dir}/other/Book Four.epub`, ab(bytes));
+  const pick = await app.vault.create(`${dir}/other/Pick me.md`, '---\nbook: "[[Some Other Book]]"\ntags: [x]\n---\nMy own words.\n');
+  asked = P.createHighlight(b4, quote);
+  btn = await until(() => modalButton('Choose a note…'), 3000);
+  if (btn) btn.click();
+  const input = await until(() => document.querySelector('.prompt input.prompt-input'), 3000);
+  if (input) { input.value = `${dir}/other/Pick me`; input.dispatchEvent(new Event('input')); }
+  const item = await until(() => [...document.querySelectorAll('.prompt .suggestion-item')].find(e => e.textContent.includes('Pick me')), 3000);
+  if (item) item.click();
+  res = await settle(asked);
+  const pt = await app.vault.read(pick);
+  ok('"Choose a note…" links the chosen note to the book and writes the highlight there, keeping the rest', res === true && /Some Other Book/.test(pt) && /Book Four\.epub/.test(pt) && /tags:/.test(pt) && /My own words\./.test(pt) && /selection=5,20/.test(pt), [res, pt]);
+  ok('and it is the book’s note from then on', await until(() => P.cardFor(b4) === pick), P.cardFor(b4) && P.cardFor(b4).path);
+
+  const b5 = await app.vault.createBinary(`${dir}/other/Book Five.epub`, ab(bytes));
+  asked = P.createHighlight(b5, quote);
+  btn = await until(() => modalButton('Only copy it'), 3000);
+  if (btn) btn.click();
+  res = await settle(asked);
+  asked = P.createHighlight(b5, quote);
+  await wait(400);
+  again = !!modalButton('Only copy it');
+  if (again) modalButton('Only copy it').click();
+  const res2 = await settle(asked);
+  ok('"Only copy it" writes nothing, and that book is not asked again', res === false && res2 === false && !again && !app.vault.getFileByPath(`${dir}/notes/Book Five.md`), [res, res2, again]);
+
+  const b6 = await app.vault.createBinary(`${dir}/other/Book Six.epub`, ab(bytes));
+  asked = P.createHighlight(b6, quote);
+  await until(() => modalButton('Make a note'), 3000);
+  const closeX = [...document.querySelectorAll('.modal-container .modal-close-button, .modal-container .modal-header-button')].find(x => x.classList.contains('modal-close-button') || x.querySelector('.lucide-x'));
+  if (closeX) closeX.click();
+  res = await settle(asked);
+  asked = P.createHighlight(b6, quote);
+  btn = await until(() => modalButton('Only copy it'), 3000);
+  if (btn) btn.click();
+  await settle(asked);
+  ok('closing the question only copies, and it is asked again next time', !!closeX && res === false && !!btn, [!!closeX, res, !!btn]);
+
+  // ---- a PDF replaced by a shorter file keeps its desk's place ----
+  const short = await app.vault.createBinary(`${dir}/Short Book.pdf`, ab(F.pdf(4)));
+  const shortNote = await app.vault.create(`${dir}/notes/Short Book.md`, '---\nbook: "[[Short Book.pdf]]"\ncurrent_page: 81\ntotal_pages: 300\n---\n');
+  const shortDesk = await app.vault.create(`${dir}/desks/Short Book.desk`, JSON.stringify({ v: 1, book: short.path, spread: 40, stickies: { 80: [{ id: 1, x: 20, y: 20, t: 'far in', c: 0, r: 0 }] } }));
+  await until(() => P.cardFor(short) === shortNote);
+  const lS = await openDesk(short), vS = viewOf(lS);
+  ok('a desk whose place lies past the end of the file says so', vS.ready && vS.file === shortDesk && !!(await until(() => [...document.querySelectorAll('.notice')].some(n => /fewer pages/.test(n.textContent)), 3000)), vS.file && vS.file.path);
+  await wait(3200);   // longer than the desk's save delay and the note's page delay
+  await P.flush(shortDesk);
+  const stS = JSON.parse(await app.vault.read(shortDesk));
+  ok('the desk file keeps the place and the marks', stS.spread === 40 && stS.stickies[80] && stS.stickies[80][0].t === 'far in', stS);
+  ok('the book’s note keeps its page', fmOf(shortNote).current_page === 81, fmOf(shortNote));
+  await vS.desk.goTo('#page=1');
+  await wait(300);
+  await P.flush(shortDesk);
+  ok('turning a page there moves the place', JSON.parse(await app.vault.read(shortDesk)).spread === 0, await app.vault.read(shortDesk));
+  await app.vault.modifyBinary(short, ab(F.pdf(6)));
+  ok('a book file changed while it is open is opened again', !!(await until(() => vS.ready && vS.contentEl.querySelector('.rd-progress') && /of 6$/.test(vS.contentEl.querySelector('.rd-progress').textContent), 6000)), vS.contentEl.querySelector('.rd-progress') && vS.contentEl.querySelector('.rd-progress').textContent);
+
+  // ---- the guide ----
+  const g1 = document.createElement('div'), g2 = document.createElement('div');
+  F.H.buildGuide(g1, { excalidraw: false }); F.H.buildGuide(g2, { excalidraw: true });
+  ok('the guide speaks of Excalidraw only when it is installed', !/Excalidraw/.test(g1.textContent) && /Excalidraw/.test(g2.textContent), '');
+
   // ---- the settings tab ----
   app.setting.open(); app.setting.openTabById('book-desk');
   await wait(500);
   const names = [...app.setting.tabContentContainer.querySelectorAll('.setting-item-name')].map(n => n.textContent);
-  ok('the settings are all there', ['Desk folder', 'Book notes folder', 'Current page property', 'Total pages property', 'New highlights', 'Highlights heading', 'Desk guide', 'Stand-in marker'].every(n => names.includes(n)), names);
+  ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'Current page property', 'Total pages property', 'New highlights', 'Highlights heading', 'Desk guide'].every(n => names.includes(n)) && names.length === 7, names);
   app.setting.close();
   ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e)).length === 0, errors);
 } finally {

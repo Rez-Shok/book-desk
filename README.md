@@ -34,19 +34,36 @@ edges that show how far you are, a pen, a highlighter, sticky notes and index ca
 
 ### The book's note
 
-A *book's note* is any note that links to the book. New highlights are added to it, under the heading you choose in the
-settings. It can also keep the page you are on in a property. If you keep such notes in one folder, name it in the
-settings; otherwise any note that links to the book will do.
+A *book's note* is the note that keeps the book's highlights. It is a note whose properties link to the book, for
+example:
+
+```yaml
+---
+book: "[[My Book.pdf]]"
+---
+```
+
+If you keep a note for every book in one folder, name that folder in the settings: then any note in it that links to the
+book is its note, wherever the link is.
+
+The first time you highlight a book that has no note, the desk asks whether to make one (named after the book, in the
+book notes folder or wherever Obsidian puts new notes), to use a note you choose (it gets a `book` property linking to
+the book), or only to copy the highlight.
+
+New highlights go under a heading of the book's note (*Highlights* unless you choose another). The note can also keep
+the page you are on and the page count in properties you name in the settings. A `language` (or `lang`) property such
+as `fa`, `ar` or `he` opens the book right to left; without one, the desk looks at the book's text.
 
 ## Where your work is kept
 
 | What | Where |
 | --- | --- |
-| The page you are on, pen marks, sticky notes, cards, zoom | A small `.desk` file per book (JSON), in the desk folder you choose in the settings. It syncs with your vault. |
+| The page you are on, pen marks, sticky notes, cards, zoom | A small `.desk` file per book (JSON), in the desk folder you choose in the settings. It syncs with your vault. With Obsidian Sync, turn on **Sync all other types** in its settings, or desks stay on the device they were made on (EPUB files need it too). |
 | Text highlights | Links in your own notes. Delete the link and the highlight is gone. |
 | Settings | The plugin's own data file. |
 
-The book files themselves are only ever read.
+The book files themselves are only ever read. If a PDF is replaced by a shorter file (another edition, or a small
+placeholder), its desk keeps your place until you turn a page.
 
 ## Privacy and safety
 

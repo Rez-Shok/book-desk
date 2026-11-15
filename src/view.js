@@ -59,7 +59,6 @@ export class DeskView extends FileView {
     }
     if (!isBook(bookFile)) return this.showMissing(file, state);
     this.bookFile = bookFile;
-    if (await P.isStandIn(bookFile)) return this.showStandIn(bookFile);
     const msg = this.contentEl.createDiv({ cls: 'rd-loading', text: 'Opening the book…' });
     try {
       const data = await app.vault.readBinary(bookFile);
@@ -97,6 +96,7 @@ export class DeskView extends FileView {
         quoteFor: h => { const n = P.cardFor(bookFile); return P.highlightMarkdown(bookFile, h, n ? n.path : ''); },
         textSize: () => P.settings.epubTextSize || 16,
         setTextSize: px => { P.settings.epubTextSize = px; void P.saveSettings(); },
+        excalidraw: () => !!window.ExcalidrawAutomate,
         toolbarHidden: () => !!app.loadLocalStorage('book-desk-toolbar-hidden'),
         setToolbarHidden: hide => app.saveLocalStorage('book-desk-toolbar-hidden', hide ? '1' : null)
       });
@@ -144,15 +144,6 @@ export class DeskView extends FileView {
         void this.plugin.writeDesk(file, st).then(() => this.reload());
       }).open();
     });
-  }
-  // the book file is a small stand-in for a book kept somewhere else (see the "Stand-in marker" setting)
-  showStandIn(bookFile) {
-    const box = this.contentEl.createDiv({ cls: 'rd-loading rd-stub' });
-    box.createEl('p', { text: `“${bookFile.basename}” is a stand-in right now: the book itself is kept outside the vault. Bring it back first, then it opens on the desk.` });
-    const row = box.createDiv({ cls: 'rd-stub-row' });
-    row.createEl('button', { text: 'Open the stand-in', cls: 'mod-cta' })
-      .addEventListener('click', () => { void this.app.workspace.getLeaf('tab').openFile(bookFile); });
-    row.createEl('button', { text: 'Try again' }).addEventListener('click', () => { void this.reload(); });
   }
   // on an Excalidraw canvas the canvas is the desk: no wooden desk around the book
   markEmbedded() {

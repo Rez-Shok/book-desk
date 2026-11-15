@@ -174,17 +174,18 @@ const GUIDE = [
   ['Excalidraw', ['drag the book’s .desk file onto a drawing, or run “Put a book on this Excalidraw drawing”.']],
   ['Sticky notes', ['click on a page. The first line is its title, written on its flag at the page edge. Drag one anywhere, even off the page; it fades when you are not using it. The corner resizes it, A− A+ change its text size.']],
   ['Cards', ['each card remembers the page it was written on.']],
-  ['The book’s note', ['a note that links to the book. New highlights go into it, and it can keep the page you are on (see the settings).']]
+  ['The book’s note', ['a note whose properties link to the book (or any note in the book notes folder that links to it). New highlights go into it; the first highlight of a book without one offers to make one. A ', ['code', 'language'], ' property such as fa, ar or he opens the book right to left.']]
 ];
 
-/** The guide card's inside. */
-export function buildGuide(el) {
+/** The guide card's inside. `opts.excalidraw`: Excalidraw is installed, so its part of the guide applies. */
+export function buildGuide(el, opts = {}) {
   const head = el.createDiv({ cls: 'rd-card-head' });
   head.createSpan({ text: 'How the desk works' });
   head.createSpan({ cls: 'rd-grow' });
   button(head, 'rd-del', { label: 'Close the guide', plain: '×' });
   const list = el.createDiv({ cls: 'rd-help-body' }).createEl('ul');
   for (const [title, parts] of GUIDE) {
+    if (title === 'Excalidraw' && !opts.excalidraw) continue;
     const li = list.createEl('li');
     li.createEl('b', { text: title + ':' });
     li.appendText(' ');

@@ -1,11 +1,12 @@
 /* The Obsidian side: a file view for books (PDF, EPUB), each book's desk file, the book's note, highlights as links. */
 
-import { Plugin, ItemView, Notice, TFile, Keymap, normalizePath } from 'obsidian';
+import { Plugin, ItemView, Notice, TFile, Keymap, normalizePath, getLinkpath } from 'obsidian';
 import { VIEW_TYPE, isBook, deskBook } from './constants.js';
 import { readSettings } from './settings-data.js';
 import { DeskSettingTab } from './settings.js';
 import { DeskView } from './view.js';
 import { BookSuggest } from './book-suggest.js';
+import { BookNoteModal, NoteSuggest } from './book-note.js';
 import { DESK_FORMAT } from './desk-state.js';
 import { escapeMarkdownText, plainLinkText } from './util.js';
 import { pdfPlusSettings, collectHighlights, drawingDataStart, removeHighlightLinks, undoRemoval } from './pdf-highlights.js';
@@ -23,6 +24,9 @@ export default class BookDeskPlugin extends Plugin {
     this.lastSaved = new Map();   // desk path -> the text this plugin last wrote there
     this.deskBooks = null;        // desk path -> book path, for every desk file in the vault (made on first use)
     this.deskBooksReady = null;
+    this.bookNotes = new Map();   // book -> the note made or chosen for it in this session (until the vault's index has it)
+    this.copyOnly = new Set();    // books whose highlights are only copied, as asked in this session
+    this.asking = new Map();      // book -> the question about its note, while it is open
     this.registerView(VIEW_TYPE, leaf => new DeskView(leaf, this));
     this.registerExtensions(['desk'], VIEW_TYPE);
     // EPUB files open on the desk too, unless another plugin reads them already (then: "Open this book on the desk")
@@ -93,23 +97,67 @@ export default class BookDeskPlugin extends Plugin {
     }
     return null;
   }
-  // the book's note: a note in the notes folder (or anywhere, if none is set) that links to the book
+  // the book's note: a note whose properties link to the book, or any note in the book notes folder that links to it.
+  // Of several, one in the folder comes first, then one that links from a property; their paths decide the rest.
   cardFor(book) {
     const rl = this.app.metadataCache.resolvedLinks, dir = (this.settings.notesFolder || '').replace(/\/$/, '');
+    let best = null, bestScore = 0;
     for (const src of Object.keys(rl)) {
       if (!rl[src][book.path] || !src.endsWith('.md')) continue;
-      if (dir && !src.startsWith(dir + '/')) continue;
-      const f = this.app.vault.getFileByPath(src);
-      if (f) return f;
+      const score = (dir && src.startsWith(dir + '/') ? 2 : 0) + (this.linksFromProperty(src, book) ? 1 : 0);
+      if (score > bestScore || (score && score === bestScore && src.localeCompare(best) < 0)) { best = src; bestScore = score; }
     }
-    return null;
+    const found = best ? this.app.vault.getFileByPath(best) : null;
+    if (found) return found;
+    const kept = this.bookNotes.get(book);
+    return kept && this.app.vault.getFileByPath(kept.path) === kept ? kept : null;
   }
-  // a small file that only stands in for a book kept elsewhere (off unless a marker is set in the settings)
-  async isStandIn(file) {
-    const marker = this.settings.standInMarker;
-    if (!marker || file.stat.size > 64000) return false;
-    const head = new Uint8Array((await this.app.vault.readBinary(file)).slice(0, 4096));
-    return new TextDecoder('latin1').decode(head).includes(marker);
+  linksFromProperty(src, book) {
+    const cache = this.app.metadataCache.getCache(src);
+    return !!cache && (cache.frontmatterLinks || []).some(l => this.app.metadataCache.getFirstLinkpathDest(getLinkpath(l.link), src) === book);
+  }
+  // the book has no note yet: ask (one question at a time per book) whether to make one, choose one, or only copy
+  askForNote(book) {
+    let q = this.asking.get(book);
+    if (!q) {
+      q = this.pickNote(book).finally(() => this.asking.delete(book));
+      this.asking.set(book, q);
+    }
+    return q;
+  }
+  async pickNote(book) {
+    const answer = await new Promise(done => new BookNoteModal(this.app, book, done).open());
+    let note = null;
+    if (answer === 'copy') this.copyOnly.add(book);
+    else if (answer === 'create') note = await this.makeBookNote(book);
+    else if (answer === 'choose') {
+      const rl = this.app.metadataCache.resolvedLinks;
+      const linking = Object.keys(rl).filter(src => rl[src][book.path] && src.endsWith('.md')).sort().map(p => this.app.vault.getFileByPath(p)).filter(Boolean);
+      const chosen = await new Promise(done => new NoteSuggest(this.app, linking, done).open());
+      if (chosen) { await this.linkNoteToBook(chosen, book); note = chosen; }
+    }
+    if (note) this.bookNotes.set(book, note);
+    return note;
+  }
+  // a new note for the book, named after it, in the book notes folder (or where Obsidian puts new notes)
+  async makeBookNote(book) {
+    let folder = normalizePath(this.settings.notesFolder || '/');
+    if (!this.settings.notesFolder) folder = this.app.fileManager.getNewFileParent(book.path).path;
+    else if (!this.app.vault.getAbstractFileByPath(folder)) await this.app.vault.createFolder(folder).catch(() => {});
+    const base = !folder || folder === '/' ? '' : folder + '/';
+    let path = normalizePath(`${base}${book.basename}.md`);
+    for (let i = 1; this.app.vault.getAbstractFileByPath(path); i++) path = normalizePath(`${base}${book.basename} ${i}.md`);
+    const link = `[[${this.app.metadataCache.fileToLinktext(book, path, true)}]]`;
+    return this.app.vault.create(path, `---\nbook: ${JSON.stringify(link)}\n---\n`);
+  }
+  // a chosen note becomes the book's note: a "book" property links it to the book (unless one of its properties does already)
+  async linkNoteToBook(note, book) {
+    if (this.linksFromProperty(note.path, book)) return;
+    const link = `[[${this.app.metadataCache.fileToLinktext(book, note.path, true)}]]`;
+    await this.app.fileManager.processFrontMatter(note, fm => {
+      const cur = fm.book;
+      fm.book = cur == null || cur === '' ? link : [...(Array.isArray(cur) ? cur : [cur]), link];
+    });
   }
   openActive() {
     const f = this.bookFor(this.app.workspace.getActiveFile());
@@ -226,8 +274,8 @@ export default class BookDeskPlugin extends Plugin {
   async onModify(file) {
     if (!(file instanceof TFile)) return;
     if (isBook(file)) {
-      // a book that could not be opened (a stand-in, a file still downloading) has changed: try again
-      this.deskViews().forEach(v => { if (v.bookFile === file && !v.desk) void v.reload(); });
+      // the book file itself has changed (downloaded at last, replaced by another edition…): open it again
+      this.deskViews().forEach(v => { if (v.bookFile === file) void v.reload(); });
     } else if (file.extension === 'desk') {
       // changed somewhere else (another device, or the same book open twice): show the new state
       if (this.pending.has(file.path)) return;
@@ -341,7 +389,8 @@ export default class BookDeskPlugin extends Plugin {
     return fill(cmd.template).replace(/(\n>[ \t]*)+\s*$/, '').replace(/\s+$/, '');
   }
   async createHighlight(book, h) {
-    const note = this.settings.highlightTarget === 'note' ? this.cardFor(book) : null;
+    let note = null;
+    if (this.settings.highlightTarget === 'note') note = this.cardFor(book) || (this.copyOnly.has(book) ? null : await this.askForNote(book));
     const md = this.highlightMarkdown(book, h, note ? note.path : '');
     try { await navigator.clipboard.writeText(md); } catch { /* the clipboard refused */ }
     if (note) {
@@ -349,9 +398,7 @@ export default class BookDeskPlugin extends Plugin {
       new Notice(`Highlight added to “${note.basename}”.`, 3000);
       return true;
     }
-    new Notice(this.settings.highlightTarget === 'note'
-      ? 'Highlight copied. No note links to this book yet: paste it into one to keep it.'
-      : 'Highlight copied: paste it into a note to keep it.', 6000);
+    new Notice('Highlight copied: paste it into a note to keep it.', 6000);
     return false;
   }
   // append `md` at the end of the section whose heading contains settings.highlightHeading (made if missing)
