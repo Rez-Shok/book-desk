@@ -191,11 +191,11 @@ export function createDesk(root, host) {
     W.clearTimeout(sharpenTimer);
     sharpenTimer = W.setTimeout(() => {
       if (destroyed || !renderedK || Math.abs(renderedK - geom.k) / geom.k < 0.2) return;
-      hiCache.clear();
+      dropAll(hiCache);
       [els.pageL, els.pageR].forEach(el => {
         const p = +el.dataset.p, cv = el.querySelector('.rd-pc canvas');
         if (!cv) return;
-        request('hi', p).then(c => { if (el.dataset.p == String(p)) paint(cv, c); }).catch(() => {});
+        request('hi', p).then(c => { if (el.dataset.p == String(p) && cv.isConnected) paint(cv, c); }).catch(() => {});
       });
     }, 350);
   }
@@ -216,11 +216,15 @@ export function createDesk(root, host) {
      ("hi") for the open spread and the next one. Fast turns show the quick copy until the sharp one
      is ready. Sharp rendering waits while a leaf is moving, so turns stay smooth. */
   const LO_W = 520;                                  // device pixels across a quick copy
-  // a phone has far less room for pictures: fewer pages are kept
-  const LO_KEEP = host.mobile ? 24 : 48, HI_PIXELS = host.mobile ? 2.5e7 : 6e7;
+  // a phone has far less room for pictures: fewer pages are kept, and none is drawn larger than Obsidian's own PDF
+  // view draws one there (5.2 million pixels; 16.7 million on a computer)
+  const LO_KEEP = host.mobile ? 24 : 48, HI_PIXELS = host.mobile ? 1.2e7 : 6e7, HI_MIN = host.mobile ? 2 : 4;
+  const PAGE_PIXELS = host.mobile ? 5242880 : 16777216;
   const loCache = new Map(), hiCache = new Map();
-  // a page dropped from a cache gives its memory back at once (iOS counts a canvas until it is collected)
-  const drop = (m, key) => { const c = m.get(key); m.delete(key); if (c && !c.isConnected) { c.width = 0; c.height = 0; } };
+  // a canvas no longer needed gives its memory back at once (iOS counts a canvas until it is collected)
+  const free = c => { c.width = 0; c.height = 0; };
+  const drop = (m, key) => { const c = m.get(key); m.delete(key); if (c && !c.isConnected) free(c); };
+  const dropAll = m => { for (const key of [...m.keys()]) drop(m, key); };
   const pending = new Map();                         // 'lo12' / 'hi12' -> job
   let pumping = false, readDir = 1, current = null;
   const wait = ms => new Promise(r => W.setTimeout(r, ms));
@@ -275,7 +279,7 @@ export function createDesk(root, host) {
     const page = await pdf.getPage(p + 1);
     const vp1 = page.getViewport({ scale: 1 });
     const full = PW * geom.k * (W.devicePixelRatio || 1);
-    const scale = kind === 'lo' ? Math.min(LO_W, full) / vp1.width : Math.min(4, full / vp1.width);
+    const scale = Math.min(kind === 'lo' ? Math.min(LO_W, full) / vp1.width : Math.min(4, full / vp1.width), Math.sqrt(PAGE_PIXELS / (vp1.width * vp1.height)) * 0.998);   // (a little under: the canvas is rounded up to whole pixels)
     const vp = page.getViewport({ scale });
     const c = W.createEl('canvas');
     c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
@@ -299,7 +303,7 @@ export function createDesk(root, host) {
       hiCache.set(p, c);
       renderedK = geom.k;
       // keep roughly 60 megapixels of sharp pages (about 240 MB) at most, 25 on a phone
-      const keep = clamp(Math.floor(HI_PIXELS / (c.width * c.height)), 4, 12);
+      const keep = clamp(Math.floor(HI_PIXELS / (c.width * c.height)), HI_MIN, 12);
       while (hiCache.size > keep) drop(hiCache, hiCache.keys().next().value);
     }
     return c;
@@ -556,6 +560,7 @@ export function createDesk(root, host) {
     addShade(el);
   }
   function fillPdfSlot(el, p) {
+    el.querySelectorAll('.rd-pc canvas').forEach(free);   // the page's own copy of the picture it showed
     el.replaceChildren();
     el.dataset.p = p;
     if (p < 0 || p >= n) { el.classList.add('blank'); return; }
@@ -564,7 +569,7 @@ export function createDesk(root, host) {
     pc.className = 'rd-pc';
     const cv = W.createEl('canvas');
     pc.appendChild(cv);
-    const same = () => el.dataset.p == String(p);
+    const same = () => el.dataset.p == String(p) && cv.isConnected;
     const hi = cached('hi', p);
     if (hi) paint(cv, hi);
     else {
@@ -2313,7 +2318,8 @@ export function createDesk(root, host) {
     start,
     fit,
     destroy() {
-      destroyed = true; ro.disconnect(); pauseSharp(); pending.clear(); hiCache.clear(); loCache.clear(); texts.clear(); textReady.clear();
+      destroyed = true; ro.disconnect(); pauseSharp(); pending.clear(); dropAll(hiCache); dropAll(loCache); texts.clear(); textReady.clear();
+      root.querySelectorAll('.rd-pc canvas').forEach(free);
       [sharpenTimer, selTimer, annosTimer, find.timer].forEach(t => W.clearTimeout(t));
       W.removeEventListener('pointermove', onTouchMove); W.removeEventListener('pointerup', onTouchUp); W.removeEventListener('pointercancel', onTouchUp);
       D.removeEventListener('selectionchange', onSelChange);

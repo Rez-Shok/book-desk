@@ -95,6 +95,9 @@ try {
   const broken = await app.vault.create(`${dir}/desks/Broken.desk`, '{ this is not JSON');
   const l5 = await openDesk(broken);
   ok('a damaged desk file does not break the view', !viewOf(l5).desk && /does not say which book/.test(viewOf(l5).contentEl.textContent), viewOf(l5).contentEl.textContent);
+  const locked = await app.vault.createBinary(`${dir}/Locked.pdf`, ab(F.pdf(2, true)));
+  const lL = await P.openBook(locked); mine.push(lL);
+  ok('a PDF locked with a password says so', await until(() => /locked with a password/.test(viewOf(lL).contentEl.textContent), 6000), viewOf(lL).contentEl.textContent);
   const junk = await app.vault.create(`${dir}/Junk.epub`, 'not a zip at all');
   const l6 = await P.openBook(junk); mine.push(l6);
   ok('a damaged book gives a clear message', await until(() => /could not be opened on the desk: .*(damaged|not an EPUB)/i.test(viewOf(l6).contentEl.textContent), 5000), viewOf(l6).contentEl.textContent);

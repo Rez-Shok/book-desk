@@ -103,7 +103,8 @@ export class DeskView extends FileView {
         createHighlight: h => P.createHighlight(bookFile, h),
         openSource: (h, ev) => P.openSource(h, ev),
         sourceLabel: h => { const f = app.vault.getFileByPath(h.source); return f ? f.basename : h.source; },
-        defaultRtl: () => P.defaultRtl(bookFile, pdf, epub),
+        // (the first pages' text decides; a book whose text will not come is taken as left to right)
+        defaultRtl: () => Promise.race([P.defaultRtl(bookFile, pdf, epub), new Promise(r => window.setTimeout(() => r(false), 8000))]),
         deleteHighlights: list => P.deleteHighlights(list),
         paper: () => P.settings.paper || 'paper',
         setPaper: name => {
@@ -126,10 +127,11 @@ export class DeskView extends FileView {
       if (this.pendingSubpath) { const sub = this.pendingSubpath; this.pendingSubpath = null; void this.desk.goTo(sub); }
     } catch (e) {
       if (load !== this.loads) return;
-      console.error('The book could not be opened on the desk:', e);
+      const locked = !!e && e.name === 'PasswordException';
+      if (!locked) console.error('The book could not be opened on the desk:', e);
       this.dropBook();
       this.contentEl.empty();
-      this.contentEl.createDiv({ cls: 'rd-loading', text: 'This book could not be opened on the desk: ' + (e instanceof Error ? e.message : String(e)) });
+      this.contentEl.createDiv({ cls: 'rd-loading', text: 'This book could not be opened on the desk: ' + (locked ? 'it is locked with a password, and the desk cannot open locked books yet.' : e instanceof Error ? e.message : String(e)) });
     }
   }
   dropBook() {

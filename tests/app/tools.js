@@ -93,6 +93,27 @@ try {
   const gb = proot.querySelector('.rd-help').getBoundingClientRect(), db = pdeskEl.getBoundingClientRect();
   ok('the end of the guide can be scrolled into view on a phone, zoomed in', gb.bottom <= db.bottom && gb.bottom > db.top, [Math.round(gb.top), Math.round(gb.bottom), Math.round(db.top), Math.round(db.bottom), proot.querySelector('.rd-zoom-val').textContent]);
   pdesk.destroy(); pbox.remove();
+
+  // a large page zoomed in: on a phone no page is drawn larger than 5.2 million pixels (as in Obsidian's own PDF view)
+  const PW0 = 1224, PH0 = 1584;   // a page of 17 x 22 inches
+  const bigPage = {
+    getViewport: ({ scale }) => ({ width: PW0 * scale, height: PH0 * scale, scale, convertToViewportRectangle: r => r }),
+    render: ({ canvasContext: c, viewport: vp }) => { c.fillStyle = '#333'; c.fillRect(10, 10, vp.width / 2, vp.height / 2); return { promise: Promise.resolve(), cancel: () => {} }; },
+    getTextContent: async () => ({ items: [] }), getAnnotations: async () => [], cleanup: () => true
+  };
+  const bigPdf = { numPages: 4, getPage: async () => bigPage, getOutline: async () => null, getDestination: async () => null, getPageIndex: async () => 0 };
+  const sizes = async mobile => {
+    const d = await mountDesk({ pdf: bigPdf }, { state: { spread: 1, board: 1 }, width: 1200, height: 900, mobile });   // large enough that a page could go past both limits
+    try {
+      await wait(500);
+      for (let k = 0; k < 9; k++) d.root.querySelector('.rd-zoom-in').click();
+      await wait(1500);
+      return [...d.root.querySelectorAll('.rd-slot.rd-page .rd-pc canvas')].map(c => c.width * c.height);
+    } finally { d.remove(); }
+  };
+  const onPhone = await sizes(true), onComputer = await sizes(false);
+  ok('zoomed in on a phone, no page is drawn larger than 5.2 million pixels', onPhone.length && onPhone.every(px => px > 0 && px <= 5242880), onPhone);
+  ok('a computer may draw the same page larger, up to 16.7 million', onComputer.length && Math.max(...onComputer) > 5242880 && onComputer.every(px => px <= 16777216), [onComputer, window.devicePixelRatio]);
 } finally {
   F.awake(false);
   if (m) m.remove();

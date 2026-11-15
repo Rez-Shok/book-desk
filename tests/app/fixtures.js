@@ -49,8 +49,8 @@ function epub(chapters, extra = [], opts = {}) {
     ...extra.map(f => ({ name: 'OEBPS/' + f.name, data: f.data, method: f.method, usize: f.usize }))
   ]);
 }
-// a plain PDF of `n` pages, each with one line of text
-function pdf(n) {
+// a plain PDF of `n` pages, each with one line of text; `locked`: it asks for a password (pdf.js stops there)
+function pdf(n, locked = false) {
   const objs = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(' ')}] /Count ${n} >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
   for (let i = 0; i < n; i++) {
@@ -60,9 +60,17 @@ function pdf(n) {
   }
   let out = '%PDF-1.4\n';
   const offs = objs.map((o, i) => { const at = out.length; out += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+  let lock = '';
+  if (locked) {
+    const hex = k => Array.from({ length: 32 }, (_, i) => ((i * 37 + k) % 256).toString(16).padStart(2, '0')).join('');
+    offs.push(out.length);
+    out += `${objs.length + 1} 0 obj\n<< /Filter /Standard /V 1 /R 2 /O <${hex(3)}> /U <${hex(11)}> /P -4 >>\nendobj\n`;
+    objs.push('encrypt');
+    lock = ` /Encrypt ${objs.length} 0 R /ID [<${hex(5).slice(0, 32)}> <${hex(5).slice(0, 32)}>]`;
+  }
   const xref = out.length;
   out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('')
-    + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R${lock} >>\nstartxref\n${xref}\n%%EOF\n`;
   return enc.encode(out);
 }
 // a desk on its own, over the window, with a stand-in for everything the plugin would give it
@@ -80,7 +88,7 @@ async function mountDesk(book, more = {}) {
     save: st => saved.push(JSON.stringify(st)), onSpread: () => {}, openInPdf: () => {}, notice: m => notices.push(m),
     helpSeen: () => true, markHelpSeen: () => {}, highlights: () => more.highlights || new Map(), createHighlight: async h => { (more.made || []).push(h); return true; },
     openSource: () => {}, deleteHighlights: () => {}, paper: () => 'paper', setPaper: () => {}, quoteFor: h => JSON.stringify(h),
-    textSize: () => more.textSize || 16, setTextSize: () => {}, toolbarHidden: () => false, setToolbarHidden: () => {}, defaultRtl: () => !!more.rtl
+    textSize: () => more.textSize || 16, setTextSize: () => {}, toolbarHidden: () => false, setToolbarHidden: () => {}, defaultRtl: () => !!more.rtl, mobile: !!more.mobile
   });
   await desk.start();
   return { desk, root, box, saved, notices, remove: () => { desk.destroy(); box.remove(); } };
