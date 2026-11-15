@@ -120,6 +120,25 @@ export function selectionRects(items, vp, b, bo, e, eo) {
   }
   return rects;
 }
+// the same for pieces given in reading order ([{ i, c0, c1 }]: characters c0..c1 of item i), whichever way the line runs
+export function segmentRects(items, vp, segs) {
+  const rects = [];
+  for (const sg of segs) {
+    const it = items[sg.i];
+    if (!it || !it.str) continue;
+    const r = itemRangeRect(it, sg.c0, sg.c1);
+    if (!r) continue;
+    const [x1, y1, x2, y2] = vp.convertToViewportRectangle(r);
+    const box = [Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)];
+    const last = rects[rects.length - 1];
+    if (last && Math.min(last[3], box[3]) - Math.max(last[1], box[1]) > 0.5 * Math.min(last[3] - last[1], box[3] - box[1])
+        && box[0] - last[2] < 6 && last[0] - box[2] < 6) {
+      last[0] = Math.min(last[0], box[0]); last[1] = Math.min(last[1], box[1]);
+      last[2] = Math.max(last[2], box[2]); last[3] = Math.max(last[3], box[3]);
+    } else rects.push(box);
+  }
+  return rects;
+}
 // Many PDFs (Persian ones above all) keep no space character between words: just a gap on the line.
 // Where two text items on a line stand apart, or the second starts a new line, the reader sees a space.
 export function needsSpace(prev, cur) {

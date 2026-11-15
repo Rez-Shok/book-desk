@@ -52,7 +52,8 @@ function epub(chapters, extra = [], opts = {}) {
 // a desk on its own, over the window, with a stand-in for everything the plugin would give it
 async function mountDesk(book, more = {}) {
   let style = document.getElementById('book-desk-test-style');
-  if (!style) { style = document.createElement('style'); style.id = 'book-desk-test-style'; style.textContent = fs.readFileSync(T.styles, 'utf8'); document.head.appendChild(style); }
+  if (!style) { style = document.createElement('style'); style.id = 'book-desk-test-style'; document.head.appendChild(style); }
+  style.textContent = fs.readFileSync(T.styles, 'utf8');   // the styles as they are now, not as they were when the app last loaded them
   const box = document.body.createDiv({ cls: 'book-desk-test-box' });
   box.setCssStyles({ position: 'fixed', left: '0px', top: '0px', width: (more.width || 1200) + 'px', height: (more.height || 800) + 'px', zIndex: '9999', background: '#888' });
   const root = box.createDiv();

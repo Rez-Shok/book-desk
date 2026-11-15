@@ -16,7 +16,9 @@ edges that show how far you are, a pen, a highlighter, sticky notes and index ca
 - **Stick notes on pages.** Each sticky note leaves a small flag on the page edge, so you can find the page again.
 - **Keep index cards** beside the book. Each card remembers the page it was written on.
 - **Search** the book, open its **contents**, and see everything you have marked in one **notes panel**.
-- **Select text** to copy it, or to copy it as a quote with a link back to the page.
+- **Select text** to copy it, or to copy it as a quote with a link back to the page. On a PDF the selection follows the
+  order the page is read in, also where the file itself stores a right-to-left line backwards (as many Persian and
+  Arabic PDFs do), so the words you copy, search for and quote come out right.
 - **Read EPUBs** as pages too, with the text size you like. Your place survives a change of text size.
 - **Right-to-left books** (Persian, Arabic, Hebrew) open with the spine on the right.
 - **Paper, sepia and night** page colours.
@@ -67,6 +69,8 @@ The book files themselves are only ever read.
 - Sound, video and scripts inside EPUBs are left out.
 - Pen marks on an EPUB page belong to that page: after a change of text size the words move, the ink does not.
 - Scanned PDFs have no text to select, highlight or search.
+- In a PDF that stores its right-to-left lines backwards, a highlight that starts or ends in the middle of a line is
+  written as two or three links (the format holds one unbroken stretch of the file per link); the first carries the words.
 - Needs Obsidian 1.13 or later. EPUBs on iPhone and iPad need iOS 16.4 or later.
 
 ## Development

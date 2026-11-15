@@ -20,6 +20,7 @@ is tested here, inside a running Obsidian on macOS.
 tests/app/run.sh tests/app/security.js   # a hostile EPUB: nothing runs, nothing is fetched, nothing leaves the page
 tests/app/run.sh tests/app/books.js      # damaged, locked and "zip bomb" books are refused; plain and Persian books work
 tests/app/run.sh tests/app/tools.js      # pen, eraser, sticky notes, cards, with a real pointer
+tests/app/run.sh tests/app/select.js     # selecting on a PDF in reading order (Persian lines drawn backwards); notes under a finger
 tests/app/run.sh tests/app/plugin.js     # the plugin in the vault: desk files, highlights in a note, renames, settings
 tests/app/run.sh tests/app/popout.js     # a desk moved to a window of its own
 ```
@@ -27,4 +28,4 @@ tests/app/run.sh tests/app/popout.js     # a desk moved to a window of its own
 Each prints its checks and how many passed. `plugin.js` and `popout.js` work in a folder of their own in the vault and
 move it to the trash when they are done; the plugin's settings are changed in memory only and put back.
 
-The first three mount a desk over Obsidian's window for a few seconds, without touching the vault.
+The first four mount a desk over Obsidian's window for a few seconds, without touching the vault.

@@ -63,16 +63,16 @@ export class DeskView extends FileView {
     const msg = this.contentEl.createDiv({ cls: 'rd-loading', text: 'Opening the book…' });
     try {
       const data = await app.vault.readBinary(bookFile);
-      let pdf = null, epub = null, pdfjs = null;
+      let pdf = null, epub = null;
       if (bookFile.extension === 'epub') epub = await openEpub(new Uint8Array(data), this.contentEl.doc);
-      else { pdfjs = await loadPdfJs(); pdf = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise; }
+      else pdf = await (await loadPdfJs()).getDocument({ data: new Uint8Array(data) }).promise;
       if (this.file !== file || load !== this.loads) { if (pdf) void pdf.destroy(); if (epub) epub.destroy(); return; }
       this.pdfDoc = pdf; this.epub = epub;
       const note = P.cardFor(bookFile);
       msg.remove();
       const root = this.contentEl.createDiv();
       this.desk = createDesk(root, {
-        pdf, epub, pdfjs,
+        pdf, epub,
         title: note ? note.basename : (epub && epub.title) || bookFile.basename,
         state,
         save: st => P.queueSave(file, bookFile, st),

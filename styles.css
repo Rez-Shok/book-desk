@@ -187,7 +187,7 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
 
 /* ---------- right-to-left books: the book is drawn mirrored, the pages' contents mirrored back ---------- */
 .rd-book.rtl { transform: scaleX(-1); }
-.rd-book.rtl .rd-pc, .rd-book.rtl .rd-hl-layer, .rd-book.rtl svg.rd-ink, .rd-book.rtl .rd-stk-layer { transform: scaleX(-1); }
+.rd-book.rtl .rd-pc, .rd-book.rtl .rd-hl-layer, .rd-book.rtl .rd-sel-layer, .rd-book.rtl .rd-found-layer, .rd-book.rtl svg.rd-ink, .rd-book.rtl .rd-stk-layer { transform: scaleX(-1); }
 
 /* ---------- on an Excalidraw canvas the canvas is the desk ---------- */
 .rdesk.rd-embedded .rd-desk { background: transparent; }
@@ -255,16 +255,10 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
 .rd-face .rd-hl-layer, .rd-face svg.rd-ink path.hl { mix-blend-mode: normal; }
 .rd-face .rd-hl { opacity: .3; }
 
-/* ---------- the Select tool: the book's own text over the page ---------- */
-.rd-text-wrap {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  transform: scaleY(var(--sy, 1)); transform-origin: 50% 0;
-  user-select: text; -webkit-user-select: text;
-}
-.rd-book.rtl .rd-text-wrap { transform: scaleX(-1) scaleY(var(--sy, 1)); }
-.rd-book[data-tool="select"] .rd-text-wrap { pointer-events: auto; }
+/* ---------- the Select tool: on a PDF page the desk draws the selection itself, in bands along the lines ---------- */
+.rd-sel-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: multiply; }
+.rd-sel { position: absolute; border-radius: 2px; background: color-mix(in srgb, var(--interactive-accent) 38%, transparent); }
 .rd-book[data-tool="select"] .rd-page { cursor: text; }
-.rd-text-wrap .textLayer ::selection { background: color-mix(in srgb, var(--interactive-accent) 35%, transparent); }
 .rdesk .rd-selbar {
   position: absolute; z-index: 40; display: flex; gap: 2px; padding: 3px;
   transform: translate(-50%, calc(-100% - 8px));
@@ -379,3 +373,17 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
 .rdesk .rd-textsize .rd-btn { font-weight: 600; min-width: 30px; }
 .rdesk.rd-setting .rd-book { opacity: .55; transition: opacity .2s; }
 .rdesk.rd-setting .rd-desk { cursor: progress; }
+
+/* ---------- notes under a finger ---------- */
+/* a drag that starts on a note's text moves the note (see dragWhole); while it is being written in, it scrolls */
+.rd-txt, .rdesk .rd-card textarea { touch-action: none; }
+.rd-txt:focus, .rdesk .rd-card textarea:focus { touch-action: pan-y; }
+.rd-sticky.is-moving, .rd-card.is-moving { opacity: 1; transition: none; }
+.rd-sticky.is-moving { box-shadow: 0 2px 3px rgba(0,0,0,.14), 0 18px 22px -10px var(--rd-shadow); }
+@media (pointer: coarse) {
+  .rd-grip { height: 26px; }
+  .rd-txt { padding-top: 30px; }
+  .rdesk button.rd-fs { height: 22px; padding: 0 7px; font-size: 13px; }
+  .rd-sticky .rd-del { font-size: 22px; height: 26px; padding: 0 8px; }
+  .rd-resize { width: 26px; height: 26px; }
+}

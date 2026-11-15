@@ -5,12 +5,13 @@ import { setIcon } from 'obsidian';
 import { clamp, safeExternalUrl } from './util.js';
 import { normalizeDeskState } from './desk-state.js';
 import { buildDeskDom, buildSticky, buildCard, buildGuide } from './desk-dom.js';
-import { PDFPP_COLORS, TEXT_OPTIONS, selectionRects, needsSpace, selectionText, charBoxes, hitChar } from './pdf-highlights.js';
+import { PDFPP_COLORS, TEXT_OPTIONS, selectionRects, segmentRects, selectionText, charBoxes, hitChar } from './pdf-highlights.js';
+import { readingText, textIndexOf, textSegments, segmentRuns, rangeText, wholeWords } from './pdf-text.js';
 import { makeEpubFlow, epubTextNodes, layoutEpub, epubPageOf, epubOffsetOf, epubWrap, epubUnwrap, epubResolve, epubBlockOf, epubTextOf, parseEpubSubpath } from './epub.js';
 
 /* ---------------------------------------------------------------------------
    createDesk(root, host) builds one desk inside `root`.
-   host: { pdf (a pdf.js document) or epub (an opened EPUB, see epub.js), pdfjs (the pdf.js library), title, state, save(state), onSpread(state, pages), openInPdf(page),
+   host: { pdf (a pdf.js document) or epub (an opened EPUB, see epub.js), title, state, save(state), onSpread(state, pages), openInPdf(page),
            notice(msg), helpSeen(), markHelpSeen(),
            palette(), colorHex(name), highlights(), createHighlight(h), openSource(h, event),
            sourceLabel(h), defaultRtl(), deleteHighlights(list), toolbarHidden(), setToolbarHidden(bool), quoteFor(h),
@@ -553,7 +554,6 @@ export function createDesk(root, host) {
     face.className = 'rd-pageface';
     face.append(pc, hlLayer(p), inkSvg(p));
     el.append(face, stickyLayer(p));
-    if (tool === 'select' && el.classList.contains('rd-page')) void buildTextLayer(el);
   }
 
   /* ---------- the PDF's own links: contents entries, references, web addresses ---------- */
@@ -722,6 +722,7 @@ export function createDesk(root, host) {
   /* ---------- spread, stacks, markers ---------- */
   function renderSpread() {
     const s = S.spread;
+    pick = null; if (!epub) selbar.hidden = true;
     fillSlot(els.pageL, leftOf(s));
     fillSlot(els.pageR, rightOf(s));
     layoutStacks(s);
@@ -1091,12 +1092,22 @@ export function createDesk(root, host) {
       .filter(x => selectionText(items, x.b, x.bo, x.e, x.eo));
   }
   // write each part as a PDF++ highlight in the current colour; true if any reached a note
-  async function makeHighlights(p, parts, items) {
+  // the page's text as it is read (see pdf-text.js), made when first asked for
+  const modelOf = info => info.model || (info.model = readingText(info.items));
+  // a stretch of that text as the ranges a highlight link can hold, without what is highlighted already.
+  // `runs` is how many ranges the stretch itself needed: more than one where the file draws its lines backwards.
+  function freeRuns(p, info, a, b) {
+    const runs = segmentRuns(info.items, textSegments(modelOf(info), a, b));
+    return { parts: runs.flatMap(r => freePartsOn(p, r, info.items)), runs: runs.length };
+  }
+  // `whole`: the words of the whole stretch, when it had to be written as several links (the first one carries them)
+  async function makeHighlights(p, parts, info, whole) {
     if (!parts.length || !host.createHighlight) return false;
+    const items = info.items;
     let kept = false;
     try {
-      for (const x of parts) {
-        const text = selectionText(items, x.b, x.bo, x.e, x.eo);
+      for (const [k, x] of parts.entries()) {
+        const text = whole == null ? rangeText(modelOf(info), items, x) : (k === 0 ? whole : '');
         const ok = await host.createHighlight({ page: p + 1, colorName: hue(color).name, text, ...x });
         if (ok) madeHere.push({ p, ...x });
         kept = ok || kept;
@@ -1165,85 +1176,78 @@ export function createDesk(root, host) {
     }, clear);
   }
 
-  /* ---------- the Select tool: the book's own text, selectable like any text ----------
-     pdf.js's text layer (the one Obsidian's PDF view uses) lies transparent over the page; the selection
-     is the device's own, so copy, look up, translate and share all work. A small bar offers Copy,
-     Highlight (a PDF++ highlight, never twice on the same words) and Copy as quote. */
-  async function buildTextLayer(slot) {
-    const p = +slot.dataset.p, TL = host.pdfjs && host.pdfjs.TextLayer;
-    if (!(p >= 0 && p < n) || !TL || slot.querySelector('.rd-text-wrap')) return;
-    const page = await pdf.getPage(p + 1);
-    if (+slot.dataset.p !== p || slot.querySelector('.rd-text-wrap')) return;
-    const vp1 = page.getViewport({ scale: 1 }), sc = PW / vp1.width, vp = page.getViewport({ scale: sc });
-    const wrap = W.createDiv();
-    wrap.className = 'rd-text-wrap';
-    wrap.style.setProperty('--sy', PH / vp.height);
-    const div = W.createDiv();
-    div.className = 'textLayer';
-    div.style.setProperty('--total-scale-factor', sc);
-    div.style.setProperty('--scale-factor', sc);
-    wrap.appendChild(div);
-    slot.insertBefore(wrap, slot.querySelector('.rd-stk-layer'));   // above the page, so a page colour leaves the selection alone
-    try {
-      const tl = new TL({ textContentSource: page.streamTextContent(TEXT_OPTIONS), container: div, viewport: vp });
-      await tl.render();
-      div._spans = tl.textDivs;   // span i is text item i, the numbering PDF++ uses
-      if (!tl.textDivs.length) wrap.classList.add('is-empty');
-      // pdf.js's own trick for smooth selection: an "end of content" sheet that follows the moving end of
-      // the selection, so the pointer over empty paper extends the selection instead of jumping
-      const end = W.createDiv();
-      end.className = 'endOfContent';
-      div.append(end);
-      textLayers.set(div, end);
-      div.addEventListener('mousedown', () => div.classList.add('selecting'));
-    } catch (err) { console.error('The text of this page could not be laid over it:', err); }
+  /* ---------- the Select tool ----------
+     In an EPUB the page is real text and the selection is the device's own. A PDF page is a picture with text
+     behind it, piece by piece and not always in reading order, so there the desk keeps the selection itself:
+     from the letter under the pointer to the letter under it now, in the order the page is read, drawn as clean
+     bands along the lines. A small bar offers Copy, Highlight (never twice on the same words) and Copy as quote. */
+  let pick = null, lastPickDown = null;   // pick: { a: { p, t }, z: { p, t }, words } places in the pages' text
+  const infoOf = slot => { const info = textReady.get(+slot.dataset.p); if (info && !info.boxes) info.boxes = charBoxes(info.items, info.vp); return info; };
+  // the place in the page's text nearest the pointer
+  function textPlace(ev, slot, reach) {
+    const info = hasPage(slot) && infoOf(slot);
+    if (!info || !info.items.length) return null;
+    const [x, y] = pageCoords(ev, slot), hit = hitChar(info.boxes, x, y, reach);
+    if (!hit) return null;
+    const t = textIndexOf(modelOf(info), hit.i, hit.o);
+    return t < 0 ? null : { p: +slot.dataset.p, t };
   }
-  const textLayers = new Map();   // .textLayer -> its end-of-content sheet
-  function resetLayer(end, layer) { layer.append(end); end.style.width = ''; end.style.height = ''; layer.classList.remove('selecting'); }
-  let pointerIsDown = false, prevRange = null;
-  // as pdf.js's TextLayerBuilder does it: mark the layers the selection touches, and keep the sheet
-  // just after the end being moved
-  function followSelection() {
-    for (const layer of [...textLayers.keys()]) if (!layer.isConnected) textLayers.delete(layer);
-    const sel = D.getSelection();
-    if (!sel || !sel.rangeCount) { textLayers.forEach(resetLayer); return; }
-    const active = new Set();
-    for (let i = 0; i < sel.rangeCount; i++) {
-      const range = sel.getRangeAt(i);
-      for (const layer of textLayers.keys()) if (!active.has(layer) && range.intersectsNode(layer)) active.add(layer);
-    }
-    for (const [layer, end] of textLayers) { if (active.has(layer)) layer.classList.add('selecting'); else resetLayer(end, layer); }
-    const range = sel.getRangeAt(0);
-    const modifyStart = prevRange && (range.compareBoundaryPoints(Range.END_TO_END, prevRange) === 0 || range.compareBoundaryPoints(Range.START_TO_END, prevRange) === 0);
-    let anchor = modifyStart ? range.startContainer : range.endContainer;
-    if (anchor.nodeType === 3) anchor = anchor.parentNode;
-    const layer = anchor.parentElement && anchor.parentElement.closest('.textLayer');
-    const end = layer && textLayers.get(layer);
-    if (end && anchor !== end && layer.contains(anchor)) {
-      end.style.width = layer.style.width; end.style.height = layer.style.height;
-      anchor.parentElement.insertBefore(end, modifyStart ? anchor : anchor.nextSibling);
-    }
-    prevRange = range.cloneRange();
+  // the selection as stretches of text, one per page: [{ p, a, b }]
+  function pickedRanges() {
+    if (!pick) return [];
+    const [lo, hi] = pick.a.p < pick.z.p || (pick.a.p === pick.z.p && pick.a.t <= pick.z.t) ? [pick.a, pick.z] : [pick.z, pick.a];
+    const len = p => { const info = textReady.get(p); return info ? modelOf(info).text.length : 0; };
+    const out = lo.p === hi.p ? [{ p: lo.p, a: lo.t, b: hi.t + 1 }] : [{ p: lo.p, a: lo.t, b: len(lo.p) }, { p: hi.p, a: 0, b: hi.t + 1 }];
+    return out.map(r => { const info = textReady.get(r.p); if (!info) return null; const [a, b] = pick.words ? wholeWords(modelOf(info), r.a, r.b) : [r.a, r.b]; return { p: r.p, a, b }; }).filter(r => r && r.b > r.a);
   }
-  // a boundary of a DOM selection -> { slot, p, i, o } in the page's text items. A boundary on an element
-  // (the layer itself, the end-of-content sheet, a line break) is moved to the nearest text around it.
-  function textPos(node, offset, isEnd) {
-    const el = node.nodeType === 3 ? node.parentElement : node;
-    const layer = el && el.closest && el.closest('.textLayer');
-    if (!layer || !root.contains(layer) || !layer._spans) return null;
-    const slot = layer.closest('.rd-slot'), spans = layer._spans, at = { slot, p: +slot.dataset.p };
-    if (node.nodeType === 3) {
-      const i = spans.indexOf(node.parentElement.closest('span'));
-      if (i >= 0) return { ...at, i, o: offset };
-    }
-    const point = D.createRange();
-    point.setStart(node, offset);
-    // the last span that starts before the boundary ends a selection; the first one after it starts one
-    let before = -1;
-    for (let k = 0; k < spans.length; k++) if (point.comparePoint(spans[k], 0) <= 0) before = k; else break;
-    if (isEnd) return before < 0 ? null : { ...at, i: before, o: spans[before].textContent.length };
-    const after = before < 0 ? 0 : (point.comparePoint(spans[before], spans[before].childNodes.length) < 0 ? before + 1 : before);   // a span wholly before the boundary is skipped
-    return after >= spans.length ? null : { ...at, i: after, o: 0 };
+  function paintPick() {
+    const ranges = pickedRanges();
+    [els.pageL, els.pageR].forEach(slot => {
+      const face = slot.querySelector('.rd-pageface');
+      if (!face) return;
+      let layer = face.querySelector('.rd-sel-layer');
+      const mine = ranges.filter(r => r.p === +slot.dataset.p), info = textReady.get(+slot.dataset.p);
+      if (!mine.length || !info) { if (layer) layer.remove(); return; }
+      if (!layer) { layer = W.createDiv(); layer.className = 'rd-sel-layer'; face.appendChild(layer); }
+      const boxes = mine.flatMap(r => segmentRects(info.items, info.vp, textSegments(modelOf(info), r.a, r.b)));
+      layer.replaceChildren(...boxes.map(b => { const d = hlBox(b, ''); d.className = 'rd-sel'; return d; }));
+    });
+  }
+  function clearPick() {
+    if (!pick && selbar.hidden) return;
+    pick = null; paintPick(); selbar.hidden = true;
+  }
+  const pickedText = () => pickedRanges().map(r => modelOf(textReady.get(r.p)).text.slice(r.a, r.b).replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ');
+  function textSelect(e, slot) {
+    const now = W.performance.now();
+    const again = lastPickDown && now - lastPickDown.t < 450 && Math.hypot(e.clientX - lastPickDown.x, e.clientY - lastPickDown.y) < 24;
+    lastPickDown = { t: now, x: e.clientX, y: e.clientY };
+    clearPick();
+    const a = textPlace(e, slot, 14);
+    if (!a) return;   // on empty paper
+    pick = { a, z: a, words: !!again };   // a double click (or double tap) takes the word
+    let moved = false;
+    if (again) paintPick();
+    onDrag(ev => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 4) return;
+      moved = true;
+      // the other open page, when the pointer has gone over to it
+      const over = [els.pageL, els.pageR].find(sl => { const r = sl.getBoundingClientRect(); return hasPage(sl) && ev.clientX >= r.left && ev.clientX <= r.right; }) || slot;
+      const z = textPlace(ev, over, 1e5);
+      if (z && pick && (z.p !== pick.z.p || z.t !== pick.z.t)) { pick.z = z; paintPick(); }
+    }, () => { if (!moved && !again) clearPick(); else showPickBar(); }, clearPick);
+  }
+  function placeSelbar(rr) {
+    const r = root.getBoundingClientRect();
+    const sx = r.width / (root.offsetWidth || r.width) || 1, sy = r.height / (root.offsetHeight || r.height) || 1;
+    selbar.hidden = false;
+    selbar.style.left = ((rr.left + rr.width / 2 - r.left) / sx) + 'px';
+    selbar.style.top = ((rr.top - r.top) / sy) + 'px';
+  }
+  function showPickBar() {
+    const boxes = [...root.querySelectorAll('.rd-sel-layer .rd-sel')].map(x => x.getBoundingClientRect()).filter(b => b.width);
+    if (!boxes.length) { selbar.hidden = true; return; }
+    placeSelbar(boxes.reduce((top, b) => (b.top < top.top ? b : top)));
   }
   // in an EPUB: the selection as stretches of chapter text [{ ci, a, b }], kept to the open pages
   function epubSelectionRanges() {
@@ -1262,25 +1266,12 @@ export function createDesk(root, host) {
     if (A.ci === Z.ci) return Z.off > A.off ? [{ ci: A.ci, a: A.off, b: Z.off }] : [];
     return [{ ci: A.ci, a: A.off, b: pageEnd(A.p) }, { ci: Z.ci, a: pageStart(Z.p), b: Z.off }].filter(r => r.b > r.a);
   }
-  // the current selection as text ranges per page: [{ p, r: { b, bo, e, eo } }]
-  function selectionRanges() {
-    if (epub) return epubSelectionRanges();
-    const sel = W.getSelection();
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return [];
-    const range = sel.getRangeAt(0);
-    const a = textPos(range.startContainer, range.startOffset, false), z = textPos(range.endContainer, range.endOffset, true);
-    if (!a || !z) return [];
-    if (a.p === z.p) return (a.i < z.i || (a.i === z.i && a.o < z.o)) ? [{ p: a.p, r: { b: a.i, bo: a.o, e: z.i, eo: z.o } }] : [];
-    // across the two pages of a spread: the end of the first page, the start of the second
-    const first = a.slot.querySelector('.textLayer')._spans, last = first.length - 1;
-    return [{ p: a.p, r: { b: a.i, bo: a.o, e: last, eo: first[last].textContent.length } }, { p: z.p, r: { b: 0, bo: 0, e: z.i, eo: z.o } }];
-  }
   const selbar = q('.rd-selbar');
   function showSelbar() {
     const sel = W.getSelection();
-    if (tool !== 'select' || !sel || sel.isCollapsed || !selectionRanges().length) { selbar.hidden = true; return; }
+    if (!epub) return;
+    if (tool !== 'select' || !sel || sel.isCollapsed || !epubSelectionRanges().length) { selbar.hidden = true; return; }
     let rr = sel.getRangeAt(0).getBoundingClientRect();
-    const r = root.getBoundingClientRect();
     if (epub) {   // the selection may run on into the chapter's hidden columns: only what shows counts
       const box = els.desk.getBoundingClientRect();
       const vis = [...sel.getRangeAt(0).getClientRects()].filter(x => x.width && x.right > box.left && x.left < box.right && x.bottom > box.top && x.top < box.bottom
@@ -1290,16 +1281,13 @@ export function createDesk(root, host) {
         rr = { left, width: right - left, top };
       }
     }
-    const sx = r.width / (root.offsetWidth || r.width) || 1, sy = r.height / (root.offsetHeight || r.height) || 1;
-    selbar.hidden = false;
-    selbar.style.left = ((rr.left + rr.width / 2 - r.left) / sx) + 'px';
-    selbar.style.top = ((rr.top - r.top) / sy) + 'px';
+    placeSelbar(rr);
   }
   // the bar comes once the hand lets go (or after a keyboard or touch-handle change), not mid-drag
   let selTimer = 0;
+  let pointerIsDown = false;
   const onSelChange = () => {
-    if (!textLayers.size && !(epub && tool === 'select')) return;
-    if (!epub) followSelection();
+    if (!(epub && tool === 'select')) return;
     W.clearTimeout(selTimer);
     if (pointerIsDown) selbar.hidden = true;
     else selTimer = W.setTimeout(showSelbar, 150);
@@ -1307,8 +1295,7 @@ export function createDesk(root, host) {
   const onDocDown = () => { pointerIsDown = true; };
   const onDocUp = () => {
     pointerIsDown = false;
-    if (!textLayers.size && !(epub && tool === 'select')) return;
-    textLayers.forEach((end, layer) => { if (!layer.classList.contains('selecting') || D.getSelection().isCollapsed) resetLayer(end, layer); });
+    if (!(epub && tool === 'select')) return;
     W.clearTimeout(selTimer); selTimer = W.setTimeout(showSelbar, 60);
   };
   D.addEventListener('selectionchange', onSelChange);
@@ -1316,25 +1303,34 @@ export function createDesk(root, host) {
   D.addEventListener('pointerup', onDocUp, true);
   selbar.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });   // keep the selection
   q('.rd-sel-copy').addEventListener('click', async () => {
-    const text = epub ? epubSelectionRanges().map(r => epubTextOf(epub, r.ci, r.a, r.b, D, false)).join('\n\n') : W.getSelection().toString();
-    try { await navigator.clipboard.writeText(text); host.notice('Copied.'); } catch { host.notice('The text could not be copied here. Select it and use the copy command of your device.'); }
+    await copyPicked();
   });
+  async function copyPicked() {
+    const text = epub ? epubSelectionRanges().map(r => epubTextOf(epub, r.ci, r.a, r.b, D, false)).join('\n\n') : pickedText();
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); host.notice('Copied.'); } catch { host.notice('The text could not be copied here. Select it and use the copy command of your device.'); }
+  }
   q('.rd-sel-hl').addEventListener('click', async () => {
-    const ranges = selectionRanges();
-    W.getSelection().removeAllRanges(); selbar.hidden = true;
-    if (epub) { for (const r of ranges) await makeEpubHighlights(r.ci, freeEpubParts(r.ci, r.a, r.b)); return; }
-    for (const { p, r } of ranges) {
-      const info = await pageText(p);
-      await makeHighlights(p, freePartsOn(p, r, info.items), info.items);
+    if (epub) {
+      const ranges = epubSelectionRanges();
+      W.getSelection().removeAllRanges(); selbar.hidden = true;
+      for (const r of ranges) await makeEpubHighlights(r.ci, freeEpubParts(r.ci, r.a, r.b));
+      return;
+    }
+    const ranges = pickedRanges();
+    clearPick();
+    for (const r of ranges) {
+      const info = await pageText(r.p), free = freeRuns(r.p, info, r.a, r.b);
+      await makeHighlights(r.p, free.parts, info, free.runs > 1 ? modelOf(info).text.slice(r.a, r.b).replace(/\s+/g, ' ').trim() : null);
     }
   });
   q('.rd-sel-quote').addEventListener('click', async () => {
     const out = [];
     if (epub) for (const r of epubSelectionRanges()) { if (host.quoteFor) out.push(host.quoteFor(epubQuote(r.ci, r.a, r.b))); }
-    else for (const { p, r } of selectionRanges()) {
-      const info = await pageText(p);
-      const text = selectionText(info.items, r.b, r.bo, r.e, r.eo);
-      if (text && host.quoteFor) out.push(host.quoteFor({ page: p + 1, colorName: hue(color).name, text, ...r }));
+    else for (const r of pickedRanges()) {
+      const info = await pageText(r.p), m = modelOf(info);
+      const text = m.text.slice(r.a, r.b).replace(/\s+/g, ' ').trim(), run = segmentRuns(info.items, textSegments(m, r.a, r.b))[0];
+      if (text && run && host.quoteFor) out.push(host.quoteFor({ page: r.p + 1, colorName: hue(color).name, text, ...run }));
     }
     if (!out.length) return;
     try { await navigator.clipboard.writeText(out.join('\n\n')); host.notice('Quote copied, with its link to the page.'); } catch { /* the clipboard refused */ }
@@ -1348,31 +1344,26 @@ export function createDesk(root, host) {
     preview.className = 'rd-hl-preview';
     layer.appendChild(preview);
     const fill = hue(color).hex, x0 = e.clientX, y0 = e.clientY;
-    let z = start, moved = false;
-    // the selection in reading order, widened to whole words
-    const range = () => {
-      const [a, b] = (start.i < z.i || (start.i === z.i && start.o <= z.o)) ? [start, z] : [z, start];
-      let bo = a.o, eo = b.o + 1;
-      const sa = info.items[a.i].str, sb = info.items[b.i].str;
-      while (bo > 0 && !isSpace(sa[bo - 1])) bo--;
-      while (eo < sb.length && !isSpace(sb[eo])) eo++;
-      return { b: a.i, bo, e: b.i, eo };
-    };
-    const freeParts = r => freePartsOn(p, r, info.items);
+    const m = modelOf(info), t0 = textIndexOf(m, start.i, start.o);
+    let tz = t0, moved = false;
+    // the stretch in the order the page is read, widened to whole words
+    const range = () => wholeWords(m, Math.min(t0, tz), Math.max(t0, tz) + 1);
+    const free = () => freeRuns(p, info, ...range());
     const draw = () => {
       const boxes = [];
-      for (const x of freeParts(range())) boxes.push(...selectionRects(info.items, info.vp, x.b, x.bo, x.e, x.eo));
+      for (const x of free().parts) boxes.push(...selectionRects(info.items, info.vp, x.b, x.bo, x.e, x.eo));
       preview.replaceChildren(...boxes.map(box => hlBox(box, fill)));
     };
     draw();
     onDrag(ev => {
       if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 4) moved = true;
       const [x, y] = pageCoords(ev, slot);
-      const hit = hitChar(info.boxes, x, y, 80);
-      if (hit && (hit.i !== z.i || hit.o !== z.o)) { z = hit; draw(); }
+      const hit = hitChar(info.boxes, x, y, 80), t = hit ? textIndexOf(m, hit.i, hit.o) : -1;
+      if (t >= 0 && t !== tz) { tz = t; draw(); }
     }, async () => {
       if (!moved) { preview.remove(); return; }
-      const kept = await makeHighlights(p, freeParts(range()), info.items);
+      const [a, b] = range(), f = free();
+      const kept = await makeHighlights(p, f.parts, info, f.runs > 1 ? m.text.slice(a, b).replace(/\s+/g, ' ').trim() : null);
       // when the link is written into a note, the real highlight replaces this preview
       W.setTimeout(() => preview.remove(), kept ? 4000 : 0);
     }, () => preview.remove());
@@ -1381,8 +1372,9 @@ export function createDesk(root, host) {
   function useTool(e, slot) {
     const p = +slot.dataset.p;
     if (!(p >= 0 && p < n)) return;
-    if (tool === 'select') return;   // the text layer takes it: the device's own selection
+    if (tool === 'select' && epub) return;   // the page is text: the device's own selection
     e.preventDefault();
+    if (tool === 'select') return textSelect(e, slot);
     if (tool === 'sticky') {
       const [x, y] = pageCoords(e, slot);
       const nt = { id: Date.now(), x: Math.round(clamp(x - 66, -30, PW - 100)), y: Math.round(clamp(y - 20, 0, PH - 110)), t: '', c: color, r: +(Math.random() * 5 - 2.5).toFixed(1) };
@@ -1537,6 +1529,25 @@ export function createDesk(root, host) {
   /* ---------- sticky notes on pages ----------
      A sticky belongs to its page and shows only while that page is open. It can sit anywhere: on the
      page, or pulled off it onto the desk beside the book. Left alone it fades, so the text shows through. */
+  /* A finger has no fine grip, and on a phone a note's grip is a few pixels high: on a touch screen the whole note
+     is its handle. A tap still puts the cursor in its text; a drag moves the note without opening the keyboard.
+     (The mouse keeps to the grip, so that text can be selected with it.) `mover()` is called when the drag begins
+     and returns what moves the note by (dx, dy) screen pixels from where it was. */
+  function dragWhole(el, field, e, mover, done) {
+    if (e.pointerType === 'mouse' || e.button > 0 || pinch || e.target.closest('button, .rd-resize, .rd-grip, .rd-card-head')) return;
+    if (D.activeElement === field) return;   // being written in: touches there belong to the text
+    const sx = e.clientX, sy = e.clientY;
+    let move = null;
+    onDrag(ev => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!move) {
+        if (Math.hypot(dx, dy) < 8) return;
+        move = mover();
+        el.classList.add('is-moving');
+      }
+      move(dx, dy);
+    }, () => { el.classList.remove('is-moving'); if (move) done(); }, () => el.classList.remove('is-moving'));
+  }
   function activateSticky(el) {
     root.querySelectorAll('.rd-sticky.is-active').forEach(x => { if (x !== el) x.classList.remove('is-active'); });
     if (el) el.classList.add('is-active');
@@ -1556,7 +1567,17 @@ export function createDesk(root, host) {
       nt.t = txt.innerText; save();
       W.clearTimeout(titleTimer); titleTimer = W.setTimeout(renderMarkers, 400);   // the first line is the flag's title
     });
-    el.addEventListener('pointerdown', e => { e.stopPropagation(); activateSticky(el); });
+    // anywhere on the page, or off it onto the desk next to the book
+    const mover = () => {
+      const ox = nt.x, oy = nt.y, k = geom.k;
+      return (dx, dy) => {
+        nt.x = Math.round(clamp(ox + dx / k, -PW * 1.2, PW * 2.2 - (nt.w || 132)));
+        nt.y = Math.round(clamp(oy + dy / k, -PH * 0.4, PH * 1.3));
+        el.style.left = nt.x + 'px'; el.style.top = nt.y + 'px';
+      };
+    };
+    const moved = () => { save(); renderMarkers(); };
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); activateSticky(el); dragWhole(el, txt, e, mover, moved); });
     el.querySelector('.rd-del').addEventListener('click', () => {
       S.stickies[p] = (S.stickies[p] || []).filter(x => x !== nt);
       if (!S.stickies[p].length) delete S.stickies[p];
@@ -1567,13 +1588,8 @@ export function createDesk(root, host) {
     el.querySelector('.rd-grip').addEventListener('pointerdown', e => {
       if (e.target.closest('button')) return;
       e.preventDefault();
-      const sx = e.clientX, sy = e.clientY, ox = nt.x, oy = nt.y, k = geom.k;
-      onDrag(ev => {
-        // anywhere on the page, or off it onto the desk next to the book
-        nt.x = Math.round(clamp(ox + (ev.clientX - sx) / k, -PW * 1.2, PW * 2.2 - (nt.w || 132)));
-        nt.y = Math.round(clamp(oy + (ev.clientY - sy) / k, -PH * 0.4, PH * 1.3));
-        el.style.left = nt.x + 'px'; el.style.top = nt.y + 'px';
-      }, () => { save(); renderMarkers(); });
+      const sx = e.clientX, sy = e.clientY, move = mover();
+      onDrag(ev => move(ev.clientX - sx, ev.clientY - sy), moved);
     });
     return el;
   }
@@ -1680,7 +1696,13 @@ export function createDesk(root, host) {
     ta.value = nt.t;
     ta.style.height = (nt.h || 150) + 'px';
     ta.addEventListener('input', () => { nt.t = ta.value; save(); });
-    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      dragWhole(el, ta, e, () => {
+        const ox = nt.x, oy = nt.y, k = geom.k;
+        return (dx, dy) => { nt.x = Math.round(ox + dx / k); nt.y = Math.round(oy + dy / k); el.style.left = nt.x + 'px'; el.style.top = nt.y + 'px'; };
+      }, save);
+    });
     el.querySelector('.rd-del').addEventListener('click', () => { S.desk = S.desk.filter(x => x !== nt); el.remove(); save(); });
     wireFont(el, nt, 15);
     wireResize(el, nt, 236, 150, 140, 60, ta);
@@ -1716,14 +1738,13 @@ export function createDesk(root, host) {
   function setTool(t) {
     tool = t;
     els.book.dataset.tool = t;
-    if (t === 'select' && epub) { /* the page is text already */ }
-    else if (t === 'select') {
-      [els.pageL, els.pageR].forEach(el => { void buildTextLayer(el); });
-      W.setTimeout(() => {
-        if (tool === 'select' && root.querySelectorAll('.rd-text-wrap').length && !root.querySelector('.rd-text-wrap:not(.is-empty)'))
-          host.notice('These pages have no text to select: the book is a scan.');
-      }, 1500);
-    } else { selbar.hidden = true; }
+    clearPick();
+    if (t === 'select' && !epub) {
+      const open = shownPages(S.spread);
+      void Promise.all(open.map(pg => pageText(pg).catch(() => null))).then(infos => {
+        if (tool === 'select' && open.length && infos.every(info => info && !info.items.some(it => it.str.trim()))) host.notice('These pages have no text to select: the book is a scan.');
+      });
+    } else if (t !== 'select') selbar.hidden = true;
     root.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
   }
   root.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
@@ -1847,12 +1868,9 @@ export function createDesk(root, host) {
   async function pageSearchText(p) {
     let t = find.pages.get(p);
     if (t) return t;
-    const items = await pagePlain(p);
-    let orig = '';
-    const starts = [];
-    items.forEach((it, k) => { if (k && needsSpace(items[k - 1], it)) orig += ' '; starts.push(orig.length); orig += it.str; if (it.hasEOL) orig += ' '; });
-    const f = fold(orig, true);
-    t = { orig, norm: f.text, map: Int32Array.from(f.map), starts, items };
+    const items = await pagePlain(p), model = readingText(items);
+    const f = fold(model.text, true);
+    t = { orig: model.text, norm: f.text, map: Int32Array.from(f.map), model, items };
     find.pages.set(p, t);
     return t;
   }
@@ -1875,12 +1893,6 @@ export function createDesk(root, host) {
     t = { orig, norm: f.text, map: Int32Array.from(f.map), back: Int32Array.from(back) };
     find.pages.set('c' + ci, t);
     return t;
-  }
-  // a span of a page's joined text -> the text items and offsets that hold it
-  function spanToRange(t, a, b) {
-    const at = off => { let lo = 0, hi = t.starts.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (t.starts[m] <= off) lo = m; else hi = m - 1; } return lo; };
-    const bi = at(a), ei = at(b - 1);
-    return { b: bi, bo: Math.min(a - t.starts[bi], t.items[bi].str.length), e: ei, eo: Math.min(b - t.starts[ei], t.items[ei].str.length) };
   }
   function setFindCount() {
     const k = find.results.length;
@@ -1962,8 +1974,7 @@ export function createDesk(root, host) {
       Promise.all([pageText(p), pageSearchText(p)]).then(([info, t]) => {
         if (+slot.dataset.p !== p || !layer.isConnected) return;
         for (const { r, i } of mine) {
-          const g = spanToRange(t, r.a, r.b);
-          for (const box of selectionRects(info.items, info.vp, g.b, g.bo, g.e, g.eo)) {
+          for (const box of segmentRects(info.items, info.vp, textSegments(t.model, r.a, r.b))) {
             const d = hlBox(box, '');
             d.className = 'rd-found' + (i === find.cur ? ' is-current' : '');
             layer.appendChild(d);
@@ -2036,7 +2047,7 @@ export function createDesk(root, host) {
       if (x.kind === 'hl') {
         body.textContent = '…';
         if (epub) body.textContent = epubTextOf(epub, x.h.ci, x.h.a, x.h.b, D, true) || '(highlight)';
-        else pagePlain(x.p).then(items => { body.textContent = selectionText(items, x.h.b, x.h.bo, x.h.e, x.h.eo) || '(highlight)'; }).catch(() => {});
+        else pageSearchText(x.p).then(t => { body.textContent = rangeText(t.model, t.items, x.h) || '(highlight)'; }).catch(() => {});
         sub.textContent = host.sourceLabel ? host.sourceLabel(x.h) : x.h.source;
       } else if (x.kind === 'sticky') { body.textContent = firstLine(x.nt.t) || '(empty sticky note)'; sub.textContent = 'Sticky note'; }
       else if (x.kind === 'card') { body.textContent = firstLine(x.nt.t) || '(empty card)'; sub.textContent = 'Card on the desk'; }
@@ -2108,6 +2119,7 @@ export function createDesk(root, host) {
   root.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('textarea, input, [contenteditable="true"]')) return;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); e.stopPropagation(); openFind(); return; }
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'c' || e.key === 'C') && pick) { e.preventDefault(); e.stopPropagation(); void copyPicked(); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key, next = S.rtl ? 'ArrowLeft' : 'ArrowRight', prev = S.rtl ? 'ArrowRight' : 'ArrowLeft';
     if (k === next || k === 'PageDown' || k === ' ') { e.preventDefault(); void readingStep(1); }
@@ -2148,6 +2160,7 @@ export function createDesk(root, host) {
   const isBoard = t => t === els.desk || t === els.world || t === els.book || t === els.notes || (t.classList && t.classList.contains('rd-cover'));
   els.desk.addEventListener('pointerdown', e => {
     if (!e.target.closest('.rd-sticky')) activateSticky(null);
+    if (pick && !e.target.closest('.rd-slot.rd-page')) clearPick();
     if (e.button > 0 || pinch || touches.size > 1 || !isBoard(e.target)) return;
     e.preventDefault();
     let lx = e.clientX, ly = e.clientY;
