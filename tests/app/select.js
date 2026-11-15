@@ -150,6 +150,42 @@ try {
   touch('pointerdown', ta, cr.left + 30, cr.top + 30); touch('pointermove', window, cr.left + 80, cr.top + 60); touch('pointerup', window, cr.left + 80, cr.top + 60);
   const c1 = m.desk.state().desk[0];
   ok('an index card moves under a finger too', Math.abs(c1.x - (c0.x + 50 / kc)) <= 1 && Math.abs(c1.y - (c0.y + 30 / kc)) <= 1, [c0.x, c0.y, c1.x, c1.y, kc]);
+
+  // ---- a finger whose "up" is lost: iOS sends it to the element the finger went down on, and if that element was
+  // taken away meanwhile (a page drawn again under the finger) it never reaches the window ----
+  const finger = id => (type, target, cx, cy) => target.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: true, clientX: cx, clientY: cy, bubbles: true, cancelable: true, button: 0 }));
+  const loseOne = id => {
+    const ghost = slot.createDiv();
+    ghost.setCssStyles({ position: 'absolute', left: '40%', top: '40%', width: '20px', height: '20px' });
+    const g = ghost.getBoundingClientRect();
+    finger(id)('pointerdown', ghost, g.left + 5, g.top + 5);
+    ghost.remove();
+    finger(id)('pointerup', ghost, g.left + 5, g.top + 5);
+  };
+  q('[data-tool="read"]').click();
+  await wait(200);
+  const zoomNow = () => q('.rd-zoom-val').textContent, world = q('.rd-world');
+  const z0 = zoomNow(), w0 = world.style.transform, deskEl = q('.rd-desk'), dk = deskEl.getBoundingClientRect();
+  loseOne(41);
+  const f42 = finger(42), px = dk.left + 40, py = dk.bottom - 60;
+  f42('pointerdown', deskEl, px, py); f42('pointermove', window, px + 40, py - 10); f42('pointermove', window, px + 90, py - 30); f42('pointerup', window, px + 90, py - 30);
+  ok('after a lost finger, the next one alone moves the desk: it is no pinch', zoomNow() === z0 && world.style.transform !== w0, [z0, zoomNow(), w0, world.style.transform]);
+  q('[data-tool="select"]').click();
+  await wait(200);
+  loseOne(43);
+  const rs = slot.getBoundingClientRect(), at2 = (x, y) => [Math.round(rs.left + x / W * rs.width), Math.round(rs.top + (H - y) / H * rs.height)];   // the desk was moved just now
+  const f44 = finger(44), [ax, ay] = at2(264, 494), [zx, zy] = at2(272, 464);
+  f44('pointerdown', slot, ax, ay); f44('pointermove', window, ax - 4, ay + 9); f44('pointermove', window, zx, zy); f44('pointerup', window, zx, zy);
+  await wait(300);
+  ok('and the Select tool takes the next finger', bands().length === 2 && zoomNow() === z0, [bands().length, zoomNow()]);
+  // a drag follows its own finger only
+  q('[data-tool="read"]').click();
+  await wait(200);
+  const w1 = world.style.transform, f45 = finger(45);
+  f45('pointerdown', deskEl, px, py);
+  finger(46)('pointermove', window, px + 120, py - 80);   // another pointer's move, while finger 45 holds still
+  ok('a drag is not moved by another pointer', world.style.transform === w1, [w1, world.style.transform]);
+  f45('pointerup', window, px, py);
 } finally {
   navigator.clipboard.writeText = realWrite;
   F.awake(false);

@@ -92,3 +92,21 @@ test('text for a note loses the strokes a justified line is stretched with', () 
   assert.equal(tidyText('مربـــوط  بـه\n تحليلـي'), 'مربوط به تحليلي');
 });
 
+
+test('on a page of one column the lines are read from the top down, also a heading the file draws last', () => {
+  const body1 = eol([item('First paragraph ends here.', 50, 700)]);
+  const body2 = eol([item('Second paragraph starts here.', 50, 660)]);
+  const heading = eol([item('A heading', 50, 680)]);
+  const footer = eol([item('page 7', 50, 40)]);
+  const m = readingText([...footer, ...body1, ...body2, ...heading]);
+  assert.equal(m.text, 'First paragraph ends here. A heading Second paragraph starts here. page 7');
+});
+
+test('where two lines stand side by side (two columns) the file\'s order is kept', () => {
+  const left = [eol([item('Left one', 50, 700)]), eol([item('Left two', 50, 688)])].flat();
+  const right = [eol([item('Right one', 300, 700)]), eol([item('Right two', 300, 688)])].flat();
+  assert.equal(readingText([...left, ...right]).text, 'Left one Left two Right one Right two');
+  // a turned line keeps the file's order too
+  const turned = { ...item('sideways', 20, 400), transform: [0, 10, -10, 0, 20, 400] };
+  assert.equal(readingText([eol([item('low', 50, 100)])[0], eol([turned])[0], eol([item('high', 50, 700)])[0]]).text, 'low sideways high');
+});

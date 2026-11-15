@@ -72,30 +72,58 @@ export function collectHighlights(app, pdf) {
 }
 
 /* ---------- geometry: a selection -> rectangles on the page ---------- */
-function findLastIndexOf(a, fn) { for (let i = a.length - 1; i >= 0; i--) if (fn(a[i])) return i; return -1; }
-// the characters of an item that belong to its string (PDF++ trims the same way)
+// The box of each character of an item's string, or null where it has none of its own.
+// pdf.js gives the boxes in the order the glyphs are drawn, and the string in reading order: in a right-to-left
+// item the two run opposite ways, and a mark (a tanwin, a space) may be missing from one of them. So the boxes are
+// paired with the string's characters by matching them, in whichever direction matches more.
 function itemChars(item) {
-  if (item._chars) return item._chars;
-  let a = null;
-  if (item.chars && item.chars.length && item.str) {
-    const first = item.chars.findIndex(c => c.c === item.str.charAt(0));
-    const last = findLastIndexOf(item.chars, c => c.c === item.str.charAt(item.str.length - 1));
-    if (first >= 0 && last >= first) a = item.chars.slice(first, last + 1);
+  if (item._chars !== undefined) return item._chars;
+  let best = null;
+  const str = item.str || '', chars = Array.isArray(item.chars) ? item.chars : [];
+  if (str && chars.length) {
+    for (const seq of [chars, chars.slice().reverse()]) {
+      const map = new Array(str.length).fill(null);
+      let j = 0, hits = 0;
+      for (let i = 0; i < str.length; i++) {
+        const reach = i === 0 ? 8 : 3;   // glyphs of its own (a leading space) may come before the first character
+        let k = j;
+        while (k < seq.length && k < j + reach && (!seq[k] || seq[k].c !== str[i])) k++;
+        if (k < seq.length && seq[k] && seq[k].c === str[i] && Array.isArray(seq[k].r)) { map[i] = seq[k]; j = k + 1; hits++; }
+      }
+      if (!best || hits > best.hits) best = { map, hits };
+      if (hits === str.length) break;
+    }
+    if (best && best.hits < Math.max(1, str.length * 0.6)) best = null;   // too little in common: share the width out instead
   }
-  item._chars = a;
-  return a;
+  item._chars = best ? best.map : null;
+  return item._chars;
 }
 // PDF-space rectangle of characters c0..c1 of an item
 function itemRangeRect(item, c0, c1) {
+  const len = Math.max(1, item.str.length);
+  c0 = Math.max(0, c0); c1 = Math.min(len - 1, c1);
+  if (c0 > c1) return null;
   const a = itemChars(item);
   if (a) {
-    if (c0 > a.length - 1 || c1 < 0) return null;
-    const d = a[Math.max(0, c0)], h = a[Math.min(a.length - 1, c1)];
-    return [Math.min(d.r[0], h.r[0]), Math.min(d.r[1], h.r[1]), Math.max(d.r[2], h.r[2]), Math.max(d.r[3], h.r[3])];
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (let o = c0; o <= c1; o++) {
+      const c = a[o];
+      if (!c) continue;
+      x1 = Math.min(x1, c.r[0], c.r[2]); y1 = Math.min(y1, c.r[1], c.r[3]); x2 = Math.max(x2, c.r[0], c.r[2]); y2 = Math.max(y2, c.r[1], c.r[3]);
+    }
+    if (x1 <= x2) return [x1, y1, x2, y2];
+    // none of these characters has a box (a mark the glyphs left out): it stands next to its neighbour
+    for (let d = 1; d < len; d++) for (const o of [c0 - d, c1 + d]) if (a[o]) {
+      const c = a[o], w = Math.abs(c.r[2] - c.r[0]) * 0.3, rtl = item.dir === 'rtl';
+      const x = (o < c0) !== rtl ? Math.max(c.r[0], c.r[2]) : Math.min(c.r[0], c.r[2]);
+      return [x - w / 2, Math.min(c.r[1], c.r[3]), x + w / 2, Math.max(c.r[1], c.r[3])];
+    }
   }
-  // no per-character boxes: share the item's width evenly between its characters
-  const len = Math.max(1, item.str.length), x = item.transform[4], y = item.transform[5];
-  return [x + item.width * Math.max(0, c0) / len, y, x + item.width * Math.min(len, c1 + 1) / len, y + (item.height || Math.abs(item.transform[3]) || 10)];
+  // no boxes: share the item's width evenly between its characters, the first one at the right of a right-to-left item
+  const x = item.transform[4], y = item.transform[5], w = item.width, h = item.height || Math.abs(item.transform[3]) || 10;
+  let f0 = c0 / len, f1 = (c1 + 1) / len;
+  if (item.dir === 'rtl') [f0, f1] = [1 - f1, 1 - f0];
+  return [x + w * f0, y, x + w * f1, y + h];
 }
 // rectangles in page units (viewport `vp`), merged along lines
 export function selectionRects(items, vp, b, bo, e, eo) {

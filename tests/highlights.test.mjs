@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { removeHighlightLinks, undoRemoval, drawingDataStart, selectionText, needsSpace } from '../src/pdf-highlights.js';
+import { removeHighlightLinks, undoRemoval, drawingDataStart, selectionText, needsSpace, segmentRects, charBoxes, hitChar } from '../src/pdf-highlights.js';
 
 const link = (sel, text = 'p.3') => `[[Book.pdf#page=3&selection=${sel}&color=yellow|Book, ${text}]]`;
 const hl = (data, original) => ({ original, start: data.indexOf(original), end: data.indexOf(original) + original.length });
@@ -52,4 +52,40 @@ test('words set apart on the page get a space between them', () => {
   assert.equal(needsSpace(items[0], items[1]), true);
   assert.equal(selectionText(items, 0, 0, 2, 4), 'کتاب خوب next');
   assert.equal(needsSpace(item('ab', 0, 20), item('cd', 20.5, 20)), false);
+});
+
+/* ---------- where characters are on the page ---------- */
+const vp = { convertToViewportRectangle: r => r };
+// glyph boxes in the order they are drawn (left to right), 10 units each, from x0
+const glyphs = (seen, x0 = 0) => [...seen].map((c, k) => ({ c, r: [x0 + 10 * k, 0, x0 + 10 * k + 10, 8] }));
+const item = (str, chars, dir, x = 0) => ({ str, chars, dir, transform: [10, 0, 0, 10, x, 0], width: 10 * str.length, height: 10 });
+const span = (it, c0, c1) => { const r = segmentRects([it], vp, [{ i: 0, c0, c1 }])[0]; return r && [r[0], r[2]]; };
+
+test('a right-to-left item: its first characters are at its right end, though pdf.js lists the glyphs from the left', () => {
+  const it = item('کرد. با', glyphs('اب .درک'), 'rtl');
+  assert.deepEqual(span(it, 0, 2), [40, 70]);    // «کرد» is drawn at the right
+  assert.deepEqual(span(it, 5, 6), [0, 20]);     // «با» at the left
+  const boxes = charBoxes([it], vp);
+  assert.equal(hitChar(boxes, 68, 4, 5).o, 0);   // a pointer at the right end is on the first character
+});
+
+test('a left-to-right item keeps its order', () => {
+  const it = item('and gated', glyphs('and gated', 100), 'ltr');
+  assert.deepEqual(span(it, 0, 2), [100, 130]);
+  assert.deepEqual(span(it, 4, 8), [140, 190]);
+});
+
+test('a mark missing from the glyphs (a tanwin) stands beside its neighbour; the rest stay paired', () => {
+  const it = item('ab\u064bcd', glyphs('abcd'), 'ltr');
+  assert.deepEqual(span(it, 3, 4), [20, 40]);    // «cd» are still the third and fourth glyphs
+  const m = span(it, 2, 2);
+  assert.ok(m[0] >= 17 && m[1] <= 23, String(m)); // the mark: a sliver at the end of «b»
+  const rtl = item('دا\u064bم', glyphs('ماد'), 'rtl');
+  assert.deepEqual(span(rtl, 0, 1), [10, 30]);   // «دا» at the right, beside «م»
+});
+
+test('without glyph boxes the width is shared out, from the right in a right-to-left item', () => {
+  assert.deepEqual(span(item('abcde', null, 'ltr', 100), 0, 0), [100, 110]);
+  assert.deepEqual(span(item('ابجده', null, 'rtl', 100), 0, 0), [140, 150]);
+  assert.deepEqual(span(item('ابجده', null, 'rtl', 100), 3, 4), [100, 120]);
 });

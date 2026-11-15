@@ -7,8 +7,9 @@
 
    Here the items are put in reading order line by line: a right-to-left line is read from its right end to its
    left as it lies on the page (numbers and Latin words inside it keep their own direction, brackets are mirrored
-   back), and the letter shapes such files use ("presentation forms") are turned back into plain letters. Lines stay
-   in the order the file has them, so columns are read as before, and left-to-right lines are not touched. */
+   back), and the letter shapes such files use ("presentation forms") are turned back into plain letters.
+   Lines stay in the order the file has them, so columns are read as before, except on a page of one column, where
+   they are read from the top down: some files draw a heading or a caption after the text around it. */
 
 import { needsSpace } from './pdf-highlights.js';
 
@@ -36,6 +37,19 @@ function gapBetween(a, b) {
   return Math.max(b1 - a2, a1 - b2) > h * 0.12;
 }
 
+// a page of one column: no two lines with text stand side by side (columns, a table, a formula), none is turned
+function oneColumn(items, lines) {
+  const shown = lines.filter(ln => ln.ids.some(i => items[i].str.trim()));
+  for (const ln of shown) for (const i of ln.ids) {
+    const t = items[i].transform;
+    if (Math.abs(t[1]) > 0.01 * Math.abs(t[0]) || Math.abs(t[2]) > 0.01 * Math.abs(t[3])) return false;
+  }
+  for (let a = 0; a < shown.length; a++) for (let b = a + 1; b < shown.length; b++) {
+    if (Math.abs(shown[a].y - shown[b].y) < 0.5 * Math.max(shown[a].h, shown[b].h)) return false;
+  }
+  return true;
+}
+
 /**
  * The items of a page in reading order.
  * @param {{ str: string, transform: number[], width: number, height: number, hasEOL?: boolean }[]} items
@@ -55,6 +69,11 @@ export function readingOrder(items) {
     line[i] = lines.length - 1;
     broke = !!it.hasEOL;
   });
+  if (oneColumn(items, lines)) {
+    lines.forEach((ln, k) => { ln.k = k; });
+    lines.sort((a, b) => b.y - a.y || a.k - b.k);   // PDF heights grow upwards
+    lines.forEach((ln, k) => ln.ids.forEach(i => { line[i] = k; }));
+  }
   for (const ln of lines) {
     const cls = ln.ids.map(i => itemClass(items[i].str));
     const r = cls.filter(c => c === 'R').length, l = cls.filter(c => c === 'L').length;

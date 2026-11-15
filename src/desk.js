@@ -899,15 +899,27 @@ export function createDesk(root, host) {
     const r = slot.getBoundingClientRect();
     return [(e.clientX - r.left) / r.width * PW, (e.clientY - r.top) / r.height * PH];
   }
-  let activeDrag = null;
+  // the drags under way. Each follows the pointer whose pointerdown started it, and no other: another finger
+  // on the glass must not move it, and a drag whose pointer's "up" was lost must not wait for that pointer forever.
+  const drags = new Set();
+  let downEvent = null;   // the pointerdown being handled now (see the listener on the document, below)
   function onDrag(move, up, cancel) {
+    const id = downEvent ? downEvent.pointerId : null;
+    let last = downEvent;
+    const mine = e => id == null || e.pointerId === id;
+    const mv = e => { if (!mine(e)) return; last = e; move(e); };
+    const end = e => { if (!mine(e)) return; stop(); if (up) up(e); };
     const stop = () => {
-      W.removeEventListener('pointermove', move); W.removeEventListener('pointerup', end); W.removeEventListener('pointercancel', end);
-      activeDrag = null;
+      W.removeEventListener('pointermove', mv); W.removeEventListener('pointerup', end); W.removeEventListener('pointercancel', end);
+      drags.delete(d);
     };
-    const end = e => { stop(); up && up(e); };
-    activeDrag = { cancel: () => { stop(); cancel && cancel(); } };
-    W.addEventListener('pointermove', move); W.addEventListener('pointerup', end); W.addEventListener('pointercancel', end);
+    const d = {
+      id, touch: !!downEvent && downEvent.pointerType === 'touch',
+      cancel: () => { stop(); if (cancel) cancel(); },
+      finish: () => { stop(); if (up && last) up(last); }   // its pointer is gone: it ends where it was last seen
+    };
+    drags.add(d);
+    W.addEventListener('pointermove', mv); W.addEventListener('pointerup', end); W.addEventListener('pointercancel', end);
   }
 
   /* ---------- a pointer on a page: turn it, pan it, or use the current tool ---------- */
@@ -2178,14 +2190,36 @@ export function createDesk(root, host) {
   });
   els.desk.addEventListener('dblclick', e => { if (isBoard(e.target)) resetView(); });
   // two fingers: zoom and move together, the board point between them stays between them
-  const touches = new Map();
-  let pinch = null;
+  const touches = new Map();   // pointerId -> { x, y, n }: the fingers on the glass, as far as the events tell
+  let pinch = null, touchCount = 0;
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  /* Events get lost. On iOS a finger's "up" goes to the element it went down on, and when that element has been
+     replaced meanwhile (a page turned or drawn again under the finger) it never reaches the window. A finger left
+     on the list would turn every later touch into a pinch, and the tools would take no touch at all. So the list is
+     put right whenever the browser says how many fingers there are: the latest ones are kept. */
+  const keepFingers = n => {
+    if (touches.size > n) {
+      const keep = new Set([...touches.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, n).map(([id]) => id));
+      for (const id of [...touches.keys()]) if (!keep.has(id)) touches.delete(id);
+      for (const d of [...drags]) if (d.touch && !touches.has(d.id)) d.finish();
+    }
+    if (touches.size < 2) pinch = null;
+  };
+  // a primary pointer goes down only when no other is down: whatever is still on the lists is stale
+  const onAnyDown = e => {
+    if (e.isPrimary) { keepFingers(0); for (const d of [...drags]) d.finish(); }
+    downEvent = e;
+  };
+  const onTouchCount = e => keepFingers(e.touches.length);
+  D.addEventListener('pointerdown', onAnyDown, true);
+  D.addEventListener('touchstart', onTouchCount, { capture: true, passive: true });
+  D.addEventListener('touchend', onTouchCount, { capture: true, passive: true });
+  D.addEventListener('touchcancel', onTouchCount, { capture: true, passive: true });
   const onTouchDown = e => {
     if (e.pointerType !== 'touch') return;
-    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY, n: ++touchCount });
     if (touches.size === 2 && home) {
-      if (activeDrag) activeDrag.cancel();
+      for (const d of [...drags]) d.cancel();
       const [a, b] = [...touches.values()], dr = els.desk.getBoundingClientRect();
       const mx = (a.x + b.x) / 2 - dr.left, my = (a.y + b.y) / 2 - dr.top;
       pinch = { d0: Math.max(10, dist(a, b)), k0: cam.k, wx: (mx - cam.x) / cam.k, wy: (my - cam.y) / cam.k };
@@ -2193,7 +2227,7 @@ export function createDesk(root, host) {
   };
   const onTouchMove = e => {
     if (!touches.has(e.pointerId)) return;
-    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    touches.get(e.pointerId).x = e.clientX; touches.get(e.pointerId).y = e.clientY;
     if (!pinch || touches.size < 2) return;
     const [a, b] = [...touches.values()], dr = els.desk.getBoundingClientRect();
     const mx = (a.x + b.x) / 2 - dr.left, my = (a.y + b.y) / 2 - dr.top;
@@ -2266,7 +2300,9 @@ export function createDesk(root, host) {
       W.removeEventListener('pointermove', onTouchMove); W.removeEventListener('pointerup', onTouchUp); W.removeEventListener('pointercancel', onTouchUp);
       D.removeEventListener('selectionchange', onSelChange);
       D.removeEventListener('pointerdown', onDocDown, true); D.removeEventListener('pointerup', onDocUp, true);
-      if (activeDrag) activeDrag.cancel();
+      for (const d of [...drags]) d.cancel();
+      D.removeEventListener('pointerdown', onAnyDown, true);
+      D.removeEventListener('touchstart', onTouchCount, true); D.removeEventListener('touchend', onTouchCount, true); D.removeEventListener('touchcancel', onTouchCount, true);
       root.replaceChildren();
     },
     state: () => S,
