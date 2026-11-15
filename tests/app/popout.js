@@ -23,12 +23,17 @@ try {
   await wait(1200);
   const place = leaf.view.contentEl.querySelector('.rd-progress').textContent;
   const sheetsMain = document.adoptedStyleSheets.length;
-  // a new window may only be opened by the user's own hand: Electron is told that this is one.
-  // (While Obsidian's window is hidden no window can be opened at all: then only the reopening itself is checked.)
-  let popped = true;
+  // A real window is opened only when asked for (BOOK_DESK_REAL_WINDOW=1): it appears on the screen of whoever is using
+  // Obsidian, and once the Obsidian window reloaded soon after and lost its open tabs. Otherwise only the reopening
+  // itself is checked. A new window may only be opened by the user's own hand: Electron is told that this is one.
+  // (While Obsidian's window is hidden no window can be opened at all.)
+  let popped = !!T.realWindow;
   window.__bookDeskLeaf = leaf;
-  try { await require('electron').remote.getCurrentWebContents().executeJavaScript('app.workspace.moveLeafToPopout(window.__bookDeskLeaf); 1', true); }
-  catch { popped = false; await leaf.view.reload(); }
+  if (popped) {
+    try { await require('electron').remote.getCurrentWebContents().executeJavaScript('app.workspace.moveLeafToPopout(window.__bookDeskLeaf); 1', true); }
+    catch { popped = false; }
+  }
+  if (!popped) await leaf.view.reload();
   delete window.__bookDeskLeaf;
   const moved = await until(() => (!popped || leaf.view.contentEl.doc !== document) && leaf.view.ready && leaf.view.desk && leaf.view.contentEl.querySelector('.rd-slot.rd-page h1'), 15000);
   const doc = leaf.view.contentEl.doc;
@@ -39,14 +44,15 @@ try {
   ok('its elements belong to the new window', h1 && h1.ownerDocument === doc && leaf.view.contentEl.querySelector('.rd-toolbar svg'), '');
   leaf.view.contentEl.querySelector('.rd-desk').dispatchEvent(new doc.defaultView.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
   await wait(1200);
-  ok('pages turn there', leaf.view.contentEl.querySelector('.rd-progress').textContent !== place, leaf.view.contentEl.querySelector('.rd-progress').textContent);
+  const after = leaf.view.contentEl.querySelector('.rd-progress');
+  ok('pages turn there', !!after && after.textContent !== place, after ? after.textContent : leaf.view.contentEl.textContent.slice(0, 120));
 
   // settings: values are cleaned before they are kept
   const tab = app.setting.pluginTabs.find(t => t.id === 'book-desk');
   await tab.setControlValue('highlightHeading', '  ## My quotes ');
   await tab.setControlValue('dataFolder', `//${dir}//desks/`);
   await tab.setControlValue('pageProperty', 'bad: name');
-  ok('settings are cleaned when they change', P.settings.highlightHeading === 'My quotes' && P.settings.dataFolder === `${dir}/desks` && P.settings.pageProperty === '', P.settings);
+  ok('settings are cleaned when they change', P.settings.highlightHeading === 'My quotes' && P.settings.dataFolder === `${dir}/desks` && P.settings.pageProperty === 'current_page', P.settings);   // a bad name falls back to the default
 } finally {
   F.awake(false);
   if (leaf) { try { leaf.detach(); } catch { /* closed */ } }

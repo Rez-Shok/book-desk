@@ -15,7 +15,7 @@ import { makeEpubFlow, epubTextNodes, layoutEpub, epubPageOf, epubOffsetOf, epub
            notice(msg), helpSeen(), markHelpSeen(),
            palette(), colorHex(name), highlights(), createHighlight(h), openSource(h, event),
            sourceLabel(h), defaultRtl(), deleteHighlights(list), toolbarHidden(), setToolbarHidden(bool), quoteFor(h),
-           paper(), setPaper(name), textSize(), setTextSize(px), excalidraw() }
+           paper(), setPaper(name), textSize(), setTextSize(px), excalidraw(), mobile (true on a phone or tablet) }
 --------------------------------------------------------------------------- */
 export function createDesk(root, host) {
   const W = root.ownerDocument.defaultView, D = root.ownerDocument;
@@ -135,6 +135,12 @@ export function createDesk(root, host) {
     const dw = els.desk.clientWidth, dh = els.desk.clientHeight, m = 60;
     let x1 = 0, y1 = 0, x2 = geom.BW, y2 = geom.BH;
     for (const c of S.desk) { if (c.x == null) continue; x1 = Math.min(x1, c.x); y1 = Math.min(y1, c.y); x2 = Math.max(x2, c.x + (c.w || 236)); y2 = Math.max(y2, c.y + (c.h || 150) + 30); }
+    // the cards as they are drawn (the guide too, which is long): the view can always reach their far end
+    for (const el of els.notes.querySelectorAll('.rd-card')) {
+      if (!el.offsetHeight) continue;
+      x1 = Math.min(x1, el.offsetLeft); y1 = Math.min(y1, el.offsetTop);
+      x2 = Math.max(x2, el.offsetLeft + el.offsetWidth); y2 = Math.max(y2, el.offsetTop + el.offsetHeight + 30);
+    }
     cam.x = clamp(cam.x, m - x2 * cam.k, dw - m - x1 * cam.k);
     cam.y = clamp(cam.y, m - y2 * cam.k, dh - m - y1 * cam.k);
   }
@@ -210,7 +216,11 @@ export function createDesk(root, host) {
      ("hi") for the open spread and the next one. Fast turns show the quick copy until the sharp one
      is ready. Sharp rendering waits while a leaf is moving, so turns stay smooth. */
   const LO_W = 520;                                  // device pixels across a quick copy
+  // a phone has far less room for pictures: fewer pages are kept
+  const LO_KEEP = host.mobile ? 24 : 48, HI_PIXELS = host.mobile ? 2.5e7 : 6e7;
   const loCache = new Map(), hiCache = new Map();
+  // a page dropped from a cache gives its memory back at once (iOS counts a canvas until it is collected)
+  const drop = (m, key) => { const c = m.get(key); m.delete(key); if (c && !c.isConnected) { c.width = 0; c.height = 0; } };
   const pending = new Map();                         // 'lo12' / 'hi12' -> job
   let pumping = false, readDir = 1, current = null;
   const wait = ms => new Promise(r => W.setTimeout(r, ms));
@@ -277,13 +287,13 @@ export function createDesk(root, host) {
     try { await task.promise; } finally { current = null; }
     if (kind === 'lo') {
       loCache.set(p, c);
-      while (loCache.size > 48) loCache.delete(loCache.keys().next().value);
+      while (loCache.size > LO_KEEP) drop(loCache, loCache.keys().next().value);
     } else {
       hiCache.set(p, c);
       renderedK = geom.k;
-      // keep roughly 60 megapixels of sharp pages (about 240 MB) at most
-      const keep = clamp(Math.floor(6e7 / (c.width * c.height)), 4, 12);
-      while (hiCache.size > keep) hiCache.delete(hiCache.keys().next().value);
+      // keep roughly 60 megapixels of sharp pages (about 240 MB) at most, 25 on a phone
+      const keep = clamp(Math.floor(HI_PIXELS / (c.width * c.height)), 4, 12);
+      while (hiCache.size > keep) drop(hiCache, hiCache.keys().next().value);
     }
     return c;
   }

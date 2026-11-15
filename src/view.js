@@ -1,6 +1,6 @@
 /* A file view for books: it opens a .desk file (or a PDF or EPUB, which leads to its desk) and puts the desk in it. */
 
-import { FileView, Notice, loadPdfJs } from 'obsidian';
+import { FileView, Notice, Platform, loadPdfJs } from 'obsidian';
 import { VIEW_TYPE, BOOK_EXT, isBook, deskBook } from './constants.js';
 import { normalizeDeskState } from './desk-state.js';
 import { createDesk } from './desk.js';
@@ -18,6 +18,7 @@ export class DeskView extends FileView {
     this.epub = null;
     this.bookFile = null;
     this.pendingSubpath = null;
+    this.loadingTask = null;   // a PDF still being opened
     this.loads = 0;   // counts openings, so one that was overtaken by another gives up
     // moved to another window: the desk listens to its window and the book's styles belong to its document,
     // so the book is opened again there (at the same place: the desk file was just saved)
@@ -61,10 +62,19 @@ export class DeskView extends FileView {
     this.bookFile = bookFile;
     const msg = this.contentEl.createDiv({ cls: 'rd-loading', text: 'Opening the book…' });
     try {
-      const data = await app.vault.readBinary(bookFile);
       let pdf = null, epub = null;
-      if (bookFile.extension === 'epub') epub = await openEpub(new Uint8Array(data), this.contentEl.doc);
-      else pdf = await (await loadPdfJs()).getDocument({ data: new Uint8Array(data) }).promise;
+      if (bookFile.extension === 'epub') epub = await openEpub(new Uint8Array(await app.vault.readBinary(bookFile)), this.contentEl.doc);
+      // a PDF is read a piece at a time, from its address in the vault, as Obsidian's own PDF view reads it: a large
+      // book is never in memory all at once (on a phone, reading a file of some hundred megabytes in one go makes
+      // the system close the app)
+      else {
+        const task = (await loadPdfJs()).getDocument({ url: app.vault.getResourcePath(bookFile) });
+        this.loadingTask = task;
+        // a large book takes a while: say how far it is
+        const size = bookFile.stat.size;
+        if (size > 2e7) task.onProgress = ({ loaded }) => { if (load === this.loads) msg.setText(`Opening the book… ${Math.min(99, Math.round(loaded / size * 100))}%`); };
+        try { pdf = await task.promise; } finally { if (this.loadingTask === task) this.loadingTask = null; }
+      }
       if (this.file !== file || load !== this.loads) { if (pdf) void pdf.destroy(); if (epub) epub.destroy(); return; }
       this.pdfDoc = pdf; this.epub = epub;
       const note = P.cardFor(bookFile);
@@ -97,6 +107,7 @@ export class DeskView extends FileView {
         textSize: () => P.settings.epubTextSize || 16,
         setTextSize: px => { P.settings.epubTextSize = px; void P.saveSettings(); },
         excalidraw: () => !!window.ExcalidrawAutomate,
+        mobile: Platform.isMobile,
         toolbarHidden: () => !!app.loadLocalStorage('book-desk-toolbar-hidden'),
         setToolbarHidden: hide => app.saveLocalStorage('book-desk-toolbar-hidden', hide ? '1' : null)
       });
@@ -117,6 +128,7 @@ export class DeskView extends FileView {
   dropBook() {
     this.loads++;
     this.ready = false;
+    if (this.loadingTask) { void this.loadingTask.destroy(); this.loadingTask = null; }   // closed while still opening
     if (this.desk) { this.desk.destroy(); this.desk = null; }
     if (this.pdfDoc) { void this.pdfDoc.destroy(); this.pdfDoc = null; }
     if (this.epub) { this.epub.destroy(); this.epub = null; }

@@ -78,6 +78,21 @@ try {
   guide.querySelector('.rd-del').click();
   ok('and can put it away', seen && !root.querySelector('.rd-help'), seen);
   desk.destroy(); box.remove();
+
+  // on a phone-sized desk the guide lies below the book and is long: zoomed in, the view can still reach its end
+  const pbox = document.body.createDiv();
+  pbox.setCssStyles({ position: 'fixed', left: '0px', top: '0px', width: '390px', height: '700px', zIndex: '9999' });
+  const proot = pbox.createDiv(); proot.setCssStyles({ height: '100%' });
+  const pdesk = H.createDesk(proot, { epub: book, title: 'T', state: null, save: () => {}, onSpread: () => {}, notice: () => {}, helpSeen: () => false, markHelpSeen: () => {}, textSize: () => 16 });
+  await pdesk.start();
+  await wait(300);
+  for (let k = 0; k < 4; k++) proot.querySelector('.rd-zoom-in').click();
+  const pdeskEl = proot.querySelector('.rd-desk');
+  for (let k = 0; k < 40; k++) pdeskEl.dispatchEvent(new WheelEvent('wheel', { deltaY: 400, bubbles: true, cancelable: true }));
+  await wait(200);
+  const gb = proot.querySelector('.rd-help').getBoundingClientRect(), db = pdeskEl.getBoundingClientRect();
+  ok('the end of the guide can be scrolled into view on a phone, zoomed in', gb.bottom <= db.bottom && gb.bottom > db.top, [Math.round(gb.top), Math.round(gb.bottom), Math.round(db.top), Math.round(db.bottom), proot.querySelector('.rd-zoom-val').textContent]);
+  pdesk.destroy(); pbox.remove();
 } finally {
   F.awake(false);
   if (m) m.remove();

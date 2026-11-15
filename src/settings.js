@@ -46,13 +46,13 @@ export class DeskSettingTab extends PluginSettingTab {
           },
           {
             name: 'Current page property',
-            desc: 'The property that holds the page you are on.',
+            desc: 'The name of the property that gets the number of the page you are on, as in “current_page: 124”.',
             visible: following,
             control: { type: 'text', key: 'pageProperty', placeholder: DEFAULT_SETTINGS.pageProperty, defaultValue: DEFAULT_SETTINGS.pageProperty, validate: badProperty }
           },
           {
             name: 'Total pages property',
-            desc: 'Filled with the page count when it is empty. Leave the name empty to leave the count out.',
+            desc: 'The name of the property that gets how many pages the book has, as in “total_pages: 691”. It is written once, while it is empty. Leave the name empty to leave the count out.',
             visible: following,
             control: { type: 'text', key: 'totalPagesProperty', placeholder: 'Off', validate: badProperty }
           }

@@ -22,7 +22,8 @@ tests/app/run.sh tests/app/books.js      # damaged, locked and "zip bomb" books 
 tests/app/run.sh tests/app/tools.js      # pen, eraser, sticky notes, cards, with a real pointer
 tests/app/run.sh tests/app/select.js     # selecting on a PDF in reading order (Persian lines drawn backwards); notes under a finger
 tests/app/run.sh tests/app/plugin.js     # the plugin in the vault: desk files, highlights in a note, renames, settings
-tests/app/run.sh tests/app/popout.js     # a desk moved to a window of its own
+tests/app/run.sh tests/app/popout.js     # a desk opened again as when it moves to a window of its own
+BOOK_DESK_REAL_WINDOW=1 tests/app/run.sh tests/app/popout.js   # really moves it to a new window: only on a vault nobody is using
 ```
 
 Each prints its checks and how many passed. `plugin.js` and `popout.js` work in a folder of their own in the vault and

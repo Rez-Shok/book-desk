@@ -11,7 +11,7 @@ mkdir -p "$OUT"
 SCRIPT="${1:A}"
 obs() { (cd /tmp && /Applications/Obsidian.app/Contents/MacOS/Obsidian eval code="$1" 2>&1 | grep -v -i "installer" || true) }
 # the test runs on inside the app; this script asks for its result until it is there
-obs "(()=>{const fs=require('fs');window.__bookDeskTest={harness:'$OUT/harness.js',fixtures:'$HERE/fixtures.js',canaryLog:'$OUT/canary.log',canaryPort:$PORT,styles:'$ROOT/styles.css',root:'$ROOT',out:'$OUT'};window.__bookDeskResult=undefined;(new Function('return (async()=>{'+fs.readFileSync('$SCRIPT','utf8')+'\n})()'))().then(r=>{window.__bookDeskResult=typeof r==='string'?r:JSON.stringify(r,null,1)},e=>{window.__bookDeskResult='THREW '+(e&&e.stack||e)});return 'started'})()" > /dev/null
+obs "(()=>{const fs=require('fs');window.__bookDeskTest={harness:'$OUT/harness.js',fixtures:'$HERE/fixtures.js',canaryLog:'$OUT/canary.log',canaryPort:$PORT,styles:'$ROOT/styles.css',root:'$ROOT',out:'$OUT',realWindow:${BOOK_DESK_REAL_WINDOW:-0}===1};window.__bookDeskResult=undefined;(new Function('return (async()=>{'+fs.readFileSync('$SCRIPT','utf8')+'\n})()'))().then(r=>{window.__bookDeskResult=typeof r==='string'?r:JSON.stringify(r,null,1)},e=>{window.__bookDeskResult='THREW '+(e&&e.stack||e)});return 'started'})()" > /dev/null
 for i in {1..600}; do
   zselect -t 50 || true
   R="$(obs "(()=>window.__bookDeskResult===undefined?'__PENDING__':window.__bookDeskResult)()")"
