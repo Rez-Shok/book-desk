@@ -334,7 +334,7 @@ export default class BookDeskPlugin extends Plugin {
   /* ---------- keep the book's note on the current page ---------- */
   queueCardPage(file, pages, total) {
     const prop = this.settings.pageProperty, totalProp = this.settings.totalPagesProperty;
-    if (!pages.length || !prop) return;
+    if (!pages.length || !prop || !this.settings.followPage) return;
     window.clearTimeout(this.cardTimers.get(file.path));
     this.cardTimers.set(file.path, window.setTimeout(() => {
       this.cardTimers.delete(file.path);

@@ -14,7 +14,7 @@ window.addEventListener('error', onErr); window.addEventListener('unhandledrejec
 const dir = 'book-desk-test-' + Date.now().toString(36), mine = [];
 const keep = P.settings, realSave = P.saveSettings;
 P.saveSettings = async () => {};   // nothing of the test reaches the settings file
-P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, pageProperty: 'current_page', totalPagesProperty: 'total_pages', highlightTarget: 'note', highlightHeading: 'Highlights' };
+P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, followPage: true, pageProperty: 'current_page', totalPagesProperty: 'total_pages', highlightTarget: 'note', highlightHeading: 'Highlights' };
 const para = n => `<p>${'The quick brown fox jumps over the lazy dog near the quiet river bank. '.repeat(n)}</p>`;
 const bytes = epub([
   { name: 'c1.xhtml', title: 'One ]] | <b>bad</b>', body: `<body><h1>One</h1>${para(6).repeat(10)}</body>` },
@@ -192,7 +192,18 @@ try {
   app.setting.open(); app.setting.openTabById('book-desk');
   await wait(500);
   const names = [...app.setting.tabContentContainer.querySelectorAll('.setting-item-name')].map(n => n.textContent);
-  ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'Current page property', 'Total pages property', 'New highlights', 'Highlights heading', 'Desk guide'].every(n => names.includes(n)) && names.length === 7, names);
+  ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'Keep the page in the book’s note', 'Current page property', 'Total pages property', 'New highlights', 'Highlights heading', 'Desk guide', 'Highlights', 'Reading progress'].every(n => names.includes(n)) && names.length === 10, names);   // with the two group headings
+  const shown = name => { const el = [...app.setting.tabContentContainer.querySelectorAll('.setting-item')].find(x => x.querySelector('.setting-item-name') && x.querySelector('.setting-item-name').textContent === name); return !!el && el.offsetParent !== null; };
+  const pageToggle = [...app.setting.tabContentContainer.querySelectorAll('.setting-item')].find(x => /Keep the page/.test(x.textContent));
+  const sw = pageToggle && pageToggle.querySelector('.checkbox-container');
+  const onBefore = shown('Current page property');
+  if (sw) sw.click();
+  await wait(400);
+  const offShown = shown('Current page property') || shown('Total pages property');
+  const offValue = P.settings.followPage;
+  if (sw) sw.click();
+  await wait(400);
+  ok('the page switch shows the property names only while it is on', onBefore && !offShown && offValue === false && P.settings.followPage === true && shown('Current page property'), [onBefore, offShown, offValue, P.settings.followPage]);
   app.setting.close();
   ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e)).length === 0, errors);
 } finally {

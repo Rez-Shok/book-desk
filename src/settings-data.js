@@ -4,8 +4,9 @@ export const DEFAULT_SETTINGS = {
   helpSeen: false,
   dataFolder: 'Book Desk',         // each book's desk: page, ink, stickies, cards, view
   notesFolder: '',                 // where new book notes are made; any note in it that links to a book is that book's note
-  pageProperty: '',                // property of the book's note that follows the current page ('' = off)
-  totalPagesProperty: '',
+  followPage: false,               // the book's note keeps the page you are on
+  pageProperty: 'current_page',    // ...in this property
+  totalPagesProperty: 'total_pages',   // and the page count in this one, when it is empty ('' = left out)
   highlightTarget: 'note',         // new highlights: 'note' = into the book's note, 'clipboard' = copy the link only
   highlightHeading: 'Highlights',  // section of the book's note that new highlights go under
   paper: 'paper',                  // page colour: paper, sepia or night
@@ -31,8 +32,10 @@ export function readSettings(raw, normalizePath) {
     helpSeen: r.helpSeen === true,
     dataFolder: folder(r.dataFolder) || d.dataFolder,
     notesFolder: folder(r.notesFolder),
-    pageProperty: propertyName(r.pageProperty),
-    totalPagesProperty: propertyName(r.totalPagesProperty),
+    // settings from before the switch: a page property that was set meant "on"
+    followPage: typeof r.followPage === 'boolean' ? r.followPage : !!propertyName(r.pageProperty),
+    pageProperty: propertyName(r.pageProperty) || d.pageProperty,
+    totalPagesProperty: r.totalPagesProperty == null ? d.totalPagesProperty : propertyName(r.totalPagesProperty),
     highlightTarget: r.highlightTarget === 'clipboard' ? 'clipboard' : 'note',
     highlightHeading: String(r.highlightHeading == null ? '' : r.highlightHeading).replace(/[\r\n]+/g, ' ').replace(/^#+\s*/, '').trim().slice(0, 120) || d.highlightHeading,
     paper: PAPERS.has(r.paper) ? r.paper : d.paper,

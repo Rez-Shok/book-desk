@@ -7,6 +7,7 @@ export class DeskSettingTab extends PluginSettingTab {
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
 
   getSettingDefinitions() {
+    const following = () => this.plugin.settings.followPage;
     return [
       {
         name: 'Desk folder',
@@ -19,24 +20,43 @@ export class DeskSettingTab extends PluginSettingTab {
         control: { type: 'folder', key: 'notesFolder', placeholder: 'Where new notes go' }
       },
       {
-        name: 'Current page property',
-        desc: 'A property of the book’s note that follows the page you are on, for example current_page. Leave empty to leave the note alone.',
-        control: { type: 'text', key: 'pageProperty', placeholder: 'Off', validate: badProperty }
+        type: 'group',
+        heading: 'Highlights',
+        items: [
+          {
+            name: 'New highlights',
+            desc: 'A highlight is a link in a note, in the format PDF++ uses, so PDF++ shows it too and the book file never changes. An EPUB’s highlights are links of the same kind, to a chapter and a place in its text.',
+            control: { type: 'dropdown', key: 'highlightTarget', defaultValue: 'note', options: { note: 'Add them to the book’s note', clipboard: 'Only copy them' } }
+          },
+          {
+            name: 'Highlights heading',
+            desc: 'The section of the book’s note that new highlights go under. It is added if the note has none.',
+            control: { type: 'text', key: 'highlightHeading', placeholder: DEFAULT_SETTINGS.highlightHeading, defaultValue: DEFAULT_SETTINGS.highlightHeading }
+          }
+        ]
       },
       {
-        name: 'Total pages property',
-        desc: 'Filled with the page count when it is empty, for example total_pages.',
-        control: { type: 'text', key: 'totalPagesProperty', placeholder: 'Off', validate: badProperty }
-      },
-      {
-        name: 'New highlights',
-        desc: 'A highlight is a link in a note, in the format PDF++ uses, so PDF++ shows it too and the book file never changes. An EPUB’s highlights are links of the same kind, to a chapter and a place in its text.',
-        control: { type: 'dropdown', key: 'highlightTarget', defaultValue: 'note', options: { note: 'Add them to the book’s note', clipboard: 'Only copy them' } }
-      },
-      {
-        name: 'Highlights heading',
-        desc: 'The section of the book’s note that new highlights go under. It is added if the note has none.',
-        control: { type: 'text', key: 'highlightHeading', placeholder: DEFAULT_SETTINGS.highlightHeading, defaultValue: DEFAULT_SETTINGS.highlightHeading }
+        type: 'group',
+        heading: 'Reading progress',
+        items: [
+          {
+            name: 'Keep the page in the book’s note',
+            desc: 'As you turn pages, the page you are on is written into a property of the book’s note, so a base or a search can show how far you are.',
+            control: { type: 'toggle', key: 'followPage', defaultValue: false }
+          },
+          {
+            name: 'Current page property',
+            desc: 'The property that holds the page you are on.',
+            visible: following,
+            control: { type: 'text', key: 'pageProperty', placeholder: DEFAULT_SETTINGS.pageProperty, defaultValue: DEFAULT_SETTINGS.pageProperty, validate: badProperty }
+          },
+          {
+            name: 'Total pages property',
+            desc: 'Filled with the page count when it is empty. Leave the name empty to leave the count out.',
+            visible: following,
+            control: { type: 'text', key: 'totalPagesProperty', placeholder: 'Off', validate: badProperty }
+          }
+        ]
       },
       {
         name: 'Desk guide',
@@ -56,5 +76,6 @@ export class DeskSettingTab extends PluginSettingTab {
   async setControlValue(key, value) {
     this.plugin.settings = readSettings({ ...this.plugin.settings, [key]: value }, normalizePath);
     await this.plugin.saveSettings();
+    if (key === 'followPage' && typeof this.refreshDomState === 'function') this.refreshDomState();   // show or hide the property names
   }
 }
