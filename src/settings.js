@@ -1,13 +1,10 @@
 import { PluginSettingTab, Notice, normalizePath } from 'obsidian';
-import { DEFAULT_SETTINGS, readSettings, propertyName } from './settings-data.js';
-
-const badProperty = v => (String(v || '').trim() && !propertyName(v) ? 'A property name cannot contain : [ ] { } # , quotes or a backslash.' : undefined);
+import { DEFAULT_SETTINGS, readSettings, PAGE_PROPERTY, TOTAL_PAGES_PROPERTY } from './settings-data.js';
 
 export class DeskSettingTab extends PluginSettingTab {
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
 
   getSettingDefinitions() {
-    const following = () => this.plugin.settings.followPage;
     return [
       {
         name: 'Desk folder',
@@ -41,20 +38,8 @@ export class DeskSettingTab extends PluginSettingTab {
         items: [
           {
             name: 'Keep the page in the book’s note',
-            desc: 'As you turn pages, the page you are on is written into a property of the book’s note, so a base or a search can show how far you are.',
+            desc: `As you turn pages, the book’s note keeps the page you are on in a “${PAGE_PROPERTY}” property, and how many pages the book has in “${TOTAL_PAGES_PROPERTY}”, so a base or a search can show how far you are.`,
             control: { type: 'toggle', key: 'followPage', defaultValue: false }
-          },
-          {
-            name: 'Current page property',
-            desc: 'The name of the property that gets the number of the page you are on, as in “current_page: 124”.',
-            visible: following,
-            control: { type: 'text', key: 'pageProperty', placeholder: DEFAULT_SETTINGS.pageProperty, defaultValue: DEFAULT_SETTINGS.pageProperty, validate: badProperty }
-          },
-          {
-            name: 'Total pages property',
-            desc: 'The name of the property that gets how many pages the book has, as in “total_pages: 691”. It is written once, while it is empty. Leave the name empty to leave the count out.',
-            visible: following,
-            control: { type: 'text', key: 'totalPagesProperty', placeholder: 'Off', validate: badProperty }
           }
         ]
       },
@@ -76,6 +61,5 @@ export class DeskSettingTab extends PluginSettingTab {
   async setControlValue(key, value) {
     this.plugin.settings = readSettings({ ...this.plugin.settings, [key]: value }, normalizePath);
     await this.plugin.saveSettings();
-    if (key === 'followPage' && typeof this.refreshDomState === 'function') this.refreshDomState();   // show or hide the property names
   }
 }

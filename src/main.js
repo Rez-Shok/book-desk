@@ -2,7 +2,7 @@
 
 import { Plugin, ItemView, Notice, TFile, Keymap, normalizePath, getLinkpath } from 'obsidian';
 import { VIEW_TYPE, isBook, deskBook } from './constants.js';
-import { readSettings } from './settings-data.js';
+import { readSettings, PAGE_PROPERTY, TOTAL_PAGES_PROPERTY } from './settings-data.js';
 import { DeskSettingTab } from './settings.js';
 import { DeskView } from './view.js';
 import { BookSuggest } from './book-suggest.js';
@@ -333,8 +333,8 @@ export default class BookDeskPlugin extends Plugin {
 
   /* ---------- keep the book's note on the current page ---------- */
   queueCardPage(file, pages, total) {
-    const prop = this.settings.pageProperty, totalProp = this.settings.totalPagesProperty;
-    if (!pages.length || !prop || !this.settings.followPage) return;
+    const prop = PAGE_PROPERTY, totalProp = TOTAL_PAGES_PROPERTY;
+    if (!pages.length || !this.settings.followPage) return;
     window.clearTimeout(this.cardTimers.get(file.path));
     this.cardTimers.set(file.path, window.setTimeout(() => {
       this.cardTimers.delete(file.path);
@@ -342,10 +342,10 @@ export default class BookDeskPlugin extends Plugin {
       if (!card) return;
       const page = Math.max(...pages) + 1;
       const cache = this.app.metadataCache.getFileCache(card), fm = (cache && cache.frontmatter) || {};
-      if (fm[prop] === page && (!totalProp || fm[totalProp])) return;
+      if (fm[prop] === page && fm[totalProp]) return;
       void this.app.fileManager.processFrontMatter(card, f => {
         f[prop] = page;
-        if (totalProp && !f[totalProp]) f[totalProp] = total;
+        if (!f[totalProp]) f[totalProp] = total;
       });
     }, 2500));
   }
