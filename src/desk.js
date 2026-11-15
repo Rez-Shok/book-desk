@@ -6,7 +6,7 @@ import { clamp, safeExternalUrl } from './util.js';
 import { normalizeDeskState } from './desk-state.js';
 import { buildDeskDom, buildSticky, buildCard, buildGuide } from './desk-dom.js';
 import { PDFPP_COLORS, TEXT_OPTIONS, selectionRects, segmentRects, selectionText, charBoxes, hitChar } from './pdf-highlights.js';
-import { readingText, textIndexOf, textSegments, segmentRuns, rangeText, wholeWords } from './pdf-text.js';
+import { readingText, textIndexOf, textSegments, segmentRuns, rangeText, wholeWords, tidyText } from './pdf-text.js';
 import { makeEpubFlow, epubTextNodes, layoutEpub, epubPageOf, epubOffsetOf, epubWrap, epubUnwrap, epubResolve, epubBlockOf, epubTextOf, parseEpubSubpath } from './epub.js';
 
 /* ---------------------------------------------------------------------------
@@ -1217,14 +1217,14 @@ export function createDesk(root, host) {
     if (!pick && selbar.hidden) return;
     pick = null; paintPick(); selbar.hidden = true;
   }
-  const pickedText = () => pickedRanges().map(r => modelOf(textReady.get(r.p)).text.slice(r.a, r.b).replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ');
+  const pickedText = () => pickedRanges().map(r => tidyText(modelOf(textReady.get(r.p)).text.slice(r.a, r.b))).filter(Boolean).join(' ');
   function textSelect(e, slot) {
     const now = W.performance.now();
     const again = lastPickDown && now - lastPickDown.t < 450 && Math.hypot(e.clientX - lastPickDown.x, e.clientY - lastPickDown.y) < 24;
     lastPickDown = { t: now, x: e.clientX, y: e.clientY };
     clearPick();
-    const a = textPlace(e, slot, 14);
-    if (!a) return;   // on empty paper
+    const a = textPlace(e, slot, 1e5);   // from the letter nearest the pointer: a drag may begin in a margin or between lines
+    if (!a) return;   // a page without text
     pick = { a, z: a, words: !!again };   // a double click (or double tap) takes the word
     let moved = false;
     if (again) paintPick();
@@ -1321,7 +1321,7 @@ export function createDesk(root, host) {
     clearPick();
     for (const r of ranges) {
       const info = await pageText(r.p), free = freeRuns(r.p, info, r.a, r.b);
-      await makeHighlights(r.p, free.parts, info, free.runs > 1 ? modelOf(info).text.slice(r.a, r.b).replace(/\s+/g, ' ').trim() : null);
+      await makeHighlights(r.p, free.parts, info, free.runs > 1 ? tidyText(modelOf(info).text.slice(r.a, r.b)) : null);
     }
   });
   q('.rd-sel-quote').addEventListener('click', async () => {
@@ -1329,7 +1329,7 @@ export function createDesk(root, host) {
     if (epub) for (const r of epubSelectionRanges()) { if (host.quoteFor) out.push(host.quoteFor(epubQuote(r.ci, r.a, r.b))); }
     else for (const r of pickedRanges()) {
       const info = await pageText(r.p), m = modelOf(info);
-      const text = m.text.slice(r.a, r.b).replace(/\s+/g, ' ').trim(), run = segmentRuns(info.items, textSegments(m, r.a, r.b))[0];
+      const text = tidyText(m.text.slice(r.a, r.b)), run = segmentRuns(info.items, textSegments(m, r.a, r.b))[0];
       if (text && run && host.quoteFor) out.push(host.quoteFor({ page: r.p + 1, colorName: hue(color).name, text, ...run }));
     }
     if (!out.length) return;
@@ -1363,7 +1363,7 @@ export function createDesk(root, host) {
     }, async () => {
       if (!moved) { preview.remove(); return; }
       const [a, b] = range(), f = free();
-      const kept = await makeHighlights(p, f.parts, info, f.runs > 1 ? m.text.slice(a, b).replace(/\s+/g, ' ').trim() : null);
+      const kept = await makeHighlights(p, f.parts, info, f.runs > 1 ? tidyText(m.text.slice(a, b)) : null);
       // when the link is written into a note, the real highlight replaces this preview
       W.setTimeout(() => preview.remove(), kept ? 4000 : 0);
     }, () => preview.remove());

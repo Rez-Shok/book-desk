@@ -5,10 +5,10 @@
    that order, every line comes out backwards. A selection, a search or a quote made in drawing order then takes the
    wrong half of the first and last lines and spells the words in reverse.
 
-   Here the items are put in reading order line by line: a right-to-left line that was drawn left to right is turned
-   round (numbers and Latin words inside it keep their own direction, brackets are mirrored back), and the letter
-   shapes such files use ("presentation forms") are turned back into plain letters. Lines stay in the order the file
-   has them, so columns are read as before. For a file that is already in reading order nothing changes. */
+   Here the items are put in reading order line by line: a right-to-left line is read from its right end to its
+   left as it lies on the page (numbers and Latin words inside it keep their own direction, brackets are mirrored
+   back), and the letter shapes such files use ("presentation forms") are turned back into plain letters. Lines stay
+   in the order the file has them, so columns are read as before, and left-to-right lines are not touched. */
 
 import { needsSpace } from './pdf-highlights.js';
 
@@ -27,15 +27,24 @@ function itemClass(str) {
   return r > l && r >= d ? 'R' : l ? 'L' : d ? 'D' : 'N';
 }
 const centre = it => it.transform[4] + (it.width || 0) / 2;
+// is there a gap on the page between two pieces of one line? (like needsSpace, but for neighbours on the page,
+// whichever of them the file drew first)
+function gapBetween(a, b) {
+  if (!a.str || !b.str || /\s$/.test(a.str) || /^\s/.test(b.str)) return false;
+  const h = Math.max(Math.abs(a.transform[3]) || 0, a.height || 0, Math.abs(b.transform[3]) || 0, b.height || 0, 1);
+  const a1 = a.transform[4], a2 = a1 + a.width, b1 = b.transform[4], b2 = b1 + b.width;
+  return Math.max(b1 - a2, a1 - b2) > h * 0.12;
+}
 
 /**
  * The items of a page in reading order.
  * @param {{ str: string, transform: number[], width: number, height: number, hasEOL?: boolean }[]} items
- * @returns {{ order: number[], line: Int32Array, mirror: Uint8Array }} order: item indexes as they are read;
- *   line: each item's line number; mirror: 1 for items of a line that was turned round and read right to left
+ * @returns {{ order: number[], line: Int32Array, mirror: Uint8Array, gap: Uint8Array }} order: item indexes as they are read;
+ *   line: each item's line number; mirror: 1 for the items of a right-to-left line that are read right to left;
+ *   gap: 1 where a space lies between an item and the one read before it
  */
 export function readingOrder(items) {
-  const line = new Int32Array(items.length), mirror = new Uint8Array(items.length), order = [], lines = [];
+  const line = new Int32Array(items.length), mirror = new Uint8Array(items.length), gap = new Uint8Array(items.length), order = [], lines = [];
   let cur = null, broke = false;
   items.forEach((it, i) => {
     const y = it.transform[5], h = Math.max(Math.abs(it.transform[3]) || 0, it.height || 0, 1);
@@ -48,16 +57,16 @@ export function readingOrder(items) {
   });
   for (const ln of lines) {
     const cls = ln.ids.map(i => itemClass(items[i].str));
-    // drawn left to right though it reads right to left?
-    let asc = 0, desc = 0, last = null;
-    ln.ids.forEach((i, k) => {
-      if (cls[k] !== 'R') return;
-      const x = centre(items[i]);
-      if (last != null) { if (x > last) asc++; else if (x < last) desc++; }
-      last = x;
-    });
-    if (asc <= desc) { order.push(...ln.ids); continue; }
-    const seq = ln.ids.map((i, k) => ({ i, c: cls[k] })).reverse();
+    const r = cls.filter(c => c === 'R').length, l = cls.filter(c => c === 'L').length;
+    if (r <= l) {   // a left-to-right line: the file's order is the reading order
+      ln.ids.forEach((i, k) => { gap[i] = k === 0 || needsSpace(items[ln.ids[k - 1]], items[i]) ? 1 : 0; });
+      order.push(...ln.ids);
+      continue;
+    }
+    // A right-to-left line is read from its right end to its left, wherever the file put each piece: some files
+    // draw the whole line from the left, some draw each phrase from the left and the phrases from the right, and
+    // the well-made ones go from the right all along. On the page they all look the same, and that is what counts.
+    const seq = ln.ids.map((i, k) => ({ i, c: cls[k], x: centre(items[i]), k })).sort((p, q) => q.x - p.x || p.k - q.k);
     // what is neither takes the direction of the line, except between two Latin words, or inside a number
     const strong = (from, step) => { for (let k = from; k >= 0 && k < seq.length; k += step) if (seq[k].c !== 'N') return seq[k].c; return 'R'; };
     const dir = seq.map((s, k) => {
@@ -66,15 +75,21 @@ export function readingOrder(items) {
       if (before === 'L' && after === 'L') return 'L';
       return before === 'D' && after === 'D' && IN_NUMBER.test(items[s.i].str) ? 'D' : 'R';
     });
+    // is there a gap on the page between a piece and the one to its right? (asked of neighbours on the page; in
+    // reading, a bracket and the far end of a Latin phrase follow each other without being neighbours)
+    const apart = k => (k <= 0 ? true : gapBetween(items[seq[k - 1].i], items[seq[k].i]));
     for (let k = 0; k < seq.length;) {
-      if (dir[k] === 'R') { mirror[seq[k].i] = 1; order.push(seq[k].i); k++; continue; }
+      if (dir[k] === 'R') { mirror[seq[k].i] = 1; gap[seq[k].i] = apart(k) ? 1 : 0; order.push(seq[k].i); k++; continue; }
       let e = k;
       while (e + 1 < seq.length && dir[e + 1] === dir[k]) e++;
-      for (let j = e; j >= k; j--) order.push(seq[j].i);   // a number or a Latin word keeps its own direction
+      // a number or a Latin phrase keeps its own direction: read from its left end (seq[e]) to its right (seq[k])
+      for (let j = e; j >= k; j--) { gap[seq[j].i] = (j === e ? apart(k) : apart(j + 1)) ? 1 : 0; order.push(seq[j].i); }
+      if (e + 1 < seq.length) seq[e + 1].after = k;   // what follows the phrase touches its left end on the page
       k = e + 1;
     }
+    seq.forEach((sq, k) => { if (sq.after != null && dir[k] === 'R') gap[sq.i] = gapBetween(items[seq[k - 1].i], items[sq.i]) ? 1 : 0; });
   }
-  return { order, line, mirror };
+  return { order, line, mirror, gap };
 }
 
 /**
@@ -84,21 +99,12 @@ export function readingOrder(items) {
  *   start[i]: where item i begins in the text (-1 if it gave none)
  */
 export function readingText(items) {
-  const { order, line, mirror } = readingOrder(items);
+  const { order, line, mirror, gap } = readingOrder(items);
   const at = [], off = [], start = new Int32Array(items.length).fill(-1);
-  // is there a gap on the page between an item and the next one drawn? (asked of neighbours on the page, which
-  // after a line is turned round are not always neighbours in reading: a bracket and the far end of a Latin phrase)
-  const gapAfter = i => i >= 0 && i + 1 < items.length && line[i] === line[i + 1] && needsSpace(items[i], items[i + 1]);
-  const apart = (p, i) => {
-    if (line[i] !== line[p]) return true;
-    const step = Math.sign(i - p);
-    if (Math.abs(i - p) === 1) return gapAfter(Math.min(i, p));
-    return mirror[p] ? gapAfter(Math.min(p, p + step)) : gapAfter(Math.min(i, i - step));
-  };
   let text = '', prev = null;
   for (const i of order) {
     const it = items[i];
-    if (prev != null && text && !/\s$/.test(text) && !/^\s/.test(it.str) && it.str && apart(prev, i)) { text += ' '; at.push(-1); off.push(-1); }
+    if (prev != null && text && !/\s$/.test(text) && !/^\s/.test(it.str) && it.str && (gap[i] || line[i] !== line[prev])) { text += ' '; at.push(-1); off.push(-1); }
     if (it.str) start[i] = text.length;
     for (let o = 0; o < it.str.length; o++) {
       let ch = it.str[o];
@@ -166,7 +172,7 @@ export function rangeText(model, items, h) {
     if (i < h.b || i > h.e || (i === h.b && o < h.bo) || (i === h.e && o >= h.eo)) continue;
     s += model.text[k];
   }
-  return s.replace(/\s+/g, ' ').trim();
+  return tidyText(s);
 }
 
 /** A stretch of the text widened to whole words. */
@@ -176,3 +182,6 @@ export function wholeWords(model, a, b) {
   while (b < t.length && !/\s/.test(t[b])) b++;
   return [a, b];
 }
+
+/** Text for a note or the clipboard: one line, without the stretching strokes (kashida) a justified line is padded with. */
+export const tidyText = text => String(text || '').replace(/\u0640+/g, '').replace(/\s+/g, ' ').trim();

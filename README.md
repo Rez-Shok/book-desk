@@ -69,8 +69,9 @@ The book files themselves are only ever read.
 - Sound, video and scripts inside EPUBs are left out.
 - Pen marks on an EPUB page belong to that page: after a change of text size the words move, the ink does not.
 - Scanned PDFs have no text to select, highlight or search.
-- In a PDF that stores its right-to-left lines backwards, a highlight that starts or ends in the middle of a line is
-  written as two or three links (the format holds one unbroken stretch of the file per link); the first carries the words.
+- In a PDF that does not store its right-to-left lines in reading order, a highlight that starts or ends in the middle
+  of a line is written as several links (the format holds one unbroken stretch of the file per link); the first
+  carries the words.
 - Needs Obsidian 1.13 or later. EPUBs on iPhone and iPad need iOS 16.4 or later.
 
 ## Development

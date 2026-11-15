@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readingOrder, readingText, textIndexOf, textSegments, segmentRuns, rangeText, wholeWords } from '../src/pdf-text.js';
+import { readingOrder, readingText, textIndexOf, textSegments, segmentRuns, rangeText, wholeWords, tidyText } from '../src/pdf-text.js';
 
 // items as pdf.js gives them: one per piece of text, with where it is drawn
 const item = (str, x, y = 700, w = str.length * 6) => ({ str, width: w, height: 10, transform: [10, 0, 0, 10, x, y], hasEOL: false });
@@ -77,3 +77,18 @@ test('letter shapes become plain letters, ligatures are spelled out', () => {
   assert.equal(m.at.length, m.text.length);
   assert.deepEqual([...m.off.slice(0, 3)], [0, 0, 1]);   // "fi" both stand for the one ligature
 });
+
+test('a line drawn phrase by phrase (each phrase from the left, the phrases from the right) is read as it looks', () => {
+  // looks like:  «ماه و پلنگ» شعر که داراست، یافتن و      stored: [یافتن و] [،] [شعر که داراست] [»] [پلنگ و ماه] [«]
+  const at = (str, x, w) => item(str, x, 700, w);
+  const stored = [at('یافتن', 440, 19), at(' ', 459.7, 0.2), at('و', 463, 5), at('،', 389, 3),
+    at('شعر', 179, 16), at(' ', 195, 0.2), at('که', 198, 9), at(' ', 207, 0.2), at('داراست', 210, 30),
+    at('»', 172, 3.6), at('پلنگ', 131, 20), at(' ', 150.7, 0.2), at('و', 154, 5), at(' ', 159, 0.2), at('ماه', 162, 10), at('«', 127.7, 3.4)];
+  stored[stored.length - 1].hasEOL = true;
+  assert.equal(readingText(stored).text, 'و یافتن ، داراست که شعر «ماه و پلنگ»');
+});
+
+test('text for a note loses the strokes a justified line is stretched with', () => {
+  assert.equal(tidyText('مربـــوط  بـه\n تحليلـي'), 'مربوط به تحليلي');
+});
+
