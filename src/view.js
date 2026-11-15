@@ -68,7 +68,14 @@ export class DeskView extends FileView {
       // book is never in memory all at once (on a phone, reading a file of some hundred megabytes in one go makes
       // the system close the app)
       else {
-        const task = (await loadPdfJs()).getDocument({ url: app.vault.getResourcePath(bookFile) });
+        // with what Obsidian's own PDF view gives pdf.js: the decoders of scanned pages (JPEG 2000 and others come as
+        // WebAssembly), the standard fonts, the character maps and colour profiles; and no code made up from a book's fonts
+        const lib = new URL('/lib/pdfjs/', window.location.href).href;
+        const task = (await loadPdfJs()).getDocument({
+          url: app.vault.getResourcePath(bookFile),
+          cMapUrl: lib + 'cmaps/', cMapPacked: true, standardFontDataUrl: lib + 'standard_fonts/', wasmUrl: lib + 'wasm/', iccUrl: lib + 'iccs/',
+          isEvalSupported: false
+        });
         this.loadingTask = task;
         // a large book takes a while: say how far it is
         const size = bookFile.stat.size;

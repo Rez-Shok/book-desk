@@ -1,6 +1,6 @@
 {
   "name": "book-desk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Read PDF and EPUB books in Obsidian like a paper book.",
   "private": true,
   "type": "module",

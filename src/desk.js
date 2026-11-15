@@ -265,7 +265,7 @@ export function createDesk(root, host) {
         try { best.res(await drawPage(best.p, best.kind)); }
         catch (e) {
           // a sharp render stopped for a page turn goes back in the queue
-          if (e && e.name === 'RenderingCancelledException' && !destroyed) pending.set(best.kind + best.p, best);
+          if (e && e.name === 'RenderingCancelledException' && !e.timedOut && !destroyed) pending.set(best.kind + best.p, best);
           else best.rej(e);
         }
       }
@@ -284,7 +284,14 @@ export function createDesk(root, host) {
     // "display" yields to the page between chunks; "print" keeps going while the window is hidden
     const task = page.render({ canvasContext: ctx, canvas: c, viewport: vp, intent: D.visibilityState === 'visible' ? 'display' : 'print' });
     current = { kind, task };
-    try { await task.promise; } finally { current = null; }
+    // a page that never finishes (a picture pdf.js cannot decode) must not hold up every page after it
+    let timedOut = false;
+    const timer = W.setTimeout(() => { timedOut = true; task.cancel(); }, 30000);
+    // the picture is on the canvas now: pdf.js lets go of what it read for the page (its pictures above all,
+    // which in a book of photographs fill the memory page by page)
+    try { await task.promise; }
+    catch (e) { if (timedOut && e) e.timedOut = true; throw e; }
+    finally { W.clearTimeout(timer); current = null; page.cleanup(); }
     if (kind === 'lo') {
       loCache.set(p, c);
       while (loCache.size > LO_KEEP) drop(loCache, loCache.keys().next().value);
@@ -301,8 +308,9 @@ export function createDesk(root, host) {
   function pauseSharp() { if (current && current.kind === 'hi') current.task.cancel(); }
   function prefetch(s) {
     if (epub) return;
-    for (let d = 1; d <= 6; d++) shownPages(s + d * readDir).forEach(p => request('lo', p).catch(() => {}));
-    for (let d = 1; d <= 2; d++) shownPages(s - d * readDir).forEach(p => request('lo', p).catch(() => {}));
+    const ahead = host.mobile ? 3 : 6, behind = host.mobile ? 1 : 2;   // a phone gets fewer pages ready
+    for (let d = 1; d <= ahead; d++) shownPages(s + d * readDir).forEach(p => request('lo', p).catch(() => {}));
+    for (let d = 1; d <= behind; d++) shownPages(s - d * readDir).forEach(p => request('lo', p).catch(() => {}));
     shownPages(s + readDir).forEach(p => request('hi', p).catch(() => {}));
   }
 
