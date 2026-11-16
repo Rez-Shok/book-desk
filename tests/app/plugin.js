@@ -213,7 +213,7 @@ try {
   const names = [...app.setting.tabContentContainer.querySelectorAll('.setting-item-name')].map(n => n.textContent);
   ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'New highlights', 'Highlights heading', 'Desk guide', 'Highlights'].every(n => names.includes(n)) && names.length === 6, names);   // with the group's heading
   app.setting.close();
-  ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e) && !/K-Plex/.test(e)).length === 0, errors);   // (another plugin of this vault reacts to the test's files)
+  ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e) && !/metadata parse cancelled/i.test(e)).length === 0, errors);   // (other plugins may react to the test's files)
 } finally {
   F.awake(false);
   console.error = realError;
