@@ -50,9 +50,7 @@ The first time you highlight a book that has no note, the desk asks whether to m
 book notes folder or wherever Obsidian puts new notes), to use a note you choose (it gets a `book` property linking to
 the book), or only to copy the highlight.
 
-New highlights go under a heading of the book's note (*Highlights* unless you choose another). Turn on **Keep the page
-in the book's note** in the settings and the note also keeps the page you are on in a `current_page` property, and the
-page count in `total_pages`. A `language` (or `lang`) property such
+New highlights go under a heading of the book's note (*Highlights* unless you choose another). A `language` (or `lang`) property such
 as `fa`, `ar` or `he` opens the book right to left; without one, the desk looks at the book's text.
 
 ## Where your work is kept

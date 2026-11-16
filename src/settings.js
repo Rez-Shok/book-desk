@@ -1,5 +1,5 @@
 import { PluginSettingTab, Notice, normalizePath } from 'obsidian';
-import { DEFAULT_SETTINGS, readSettings, PAGE_PROPERTY, TOTAL_PAGES_PROPERTY } from './settings-data.js';
+import { DEFAULT_SETTINGS, readSettings } from './settings-data.js';
 
 export class DeskSettingTab extends PluginSettingTab {
   constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
@@ -29,17 +29,6 @@ export class DeskSettingTab extends PluginSettingTab {
             name: 'Highlights heading',
             desc: 'The section of the book’s note that new highlights go under. It is added if the note has none.',
             control: { type: 'text', key: 'highlightHeading', placeholder: DEFAULT_SETTINGS.highlightHeading, defaultValue: DEFAULT_SETTINGS.highlightHeading }
-          }
-        ]
-      },
-      {
-        type: 'group',
-        heading: 'Reading progress',
-        items: [
-          {
-            name: 'Keep the page in the book’s note',
-            desc: `The desk always remembers where you are in a book. Turn this on to also write it into the book’s note, as “${PAGE_PROPERTY}: 124” and “${TOTAL_PAGES_PROPERTY}: 691”, so a base of your books can show how far you are in each.`,
-            control: { type: 'toggle', key: 'followPage', defaultValue: false }
           }
         ]
       },

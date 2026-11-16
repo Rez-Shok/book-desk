@@ -11,7 +11,7 @@ import { makeEpubFlow, epubTextNodes, layoutEpub, epubPageOf, epubOffsetOf, epub
 
 /* ---------------------------------------------------------------------------
    createDesk(root, host) builds one desk inside `root`.
-   host: { pdf (a pdf.js document) or epub (an opened EPUB, see epub.js), title, state, save(state), onSpread(state, pages), openInPdf(page),
+   host: { pdf (a pdf.js document) or epub (an opened EPUB, see epub.js), title, state, save(state), openInPdf(page),
            notice(msg), helpSeen(), markHelpSeen(),
            palette(), colorHex(name), highlights(), createHighlight(h), openSource(h, event),
            sourceLabel(h), defaultRtl(), deleteHighlights(list), toolbarHidden(), setToolbarHidden(bool), quoteFor(h),
@@ -58,7 +58,7 @@ export function createDesk(root, host) {
   let epubHl = epub ? highlights : null;                                  // an EPUB's, by chapter
   if (epub) highlights = new Map();
   // a place the desk file remembers past the end of this PDF (a shorter file: another edition, a placeholder):
-  // it is kept as it was, and the book's note keeps its page, until a page is turned here
+  // it is kept as it was until a page is turned here
   let held = null;
   const save = () => {
     if (epub && L) keepAnchors();
@@ -765,7 +765,6 @@ export function createDesk(root, host) {
     if (!epub && typeof paintFoundMarks === 'function') paintFoundMarks();   // an EPUB page brings its marks along
     if (typeof markToc === 'function') markToc();
     save();
-    if (!held) host.onSpread(S, shownPages(s), n);
   }
   /* Sticky-note flags on the page edges, like paper tabs: every flag has the same length from its own page,
      so one on a page deep in the stack sticks out further than one on a page close by; each stays at its

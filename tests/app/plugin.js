@@ -14,7 +14,7 @@ window.addEventListener('error', onErr); window.addEventListener('unhandledrejec
 const dir = 'book-desk-test-' + Date.now().toString(36), mine = [];
 const keep = P.settings, realSave = P.saveSettings;
 P.saveSettings = async () => {};   // nothing of the test reaches the settings file
-P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, followPage: true, highlightTarget: 'note', highlightHeading: 'Highlights' };
+P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, highlightTarget: 'note', highlightHeading: 'Highlights' };
 const para = n => `<p>${'The quick brown fox jumps over the lazy dog near the quiet river bank. '.repeat(n)}</p>`;
 const bytes = epub([
   { name: 'c1.xhtml', title: 'One ]] | <b>bad</b>', body: `<body><h1>One</h1>${para(6).repeat(10)}</body>` },
@@ -71,10 +71,11 @@ try {
     ok('Undo brings it back', !!(await until(async () => /selection=5,20/.test(await app.vault.read(note)), 3000)), await app.vault.read(note));
   }
 
-  // ---- the page in the note, the state in the desk file ----
+  // ---- the place is kept in the desk file; the book's note is left alone ----
+  const noteBefore = await app.vault.read(note);
   await view.desk.goTo('#chapter=2');
-  const page = await until(() => { const c = app.metadataCache.getFileCache(note); return c && c.frontmatter && c.frontmatter.current_page > 1 && c.frontmatter; }, 9000);
-  ok('the note follows the page', page && page.total_pages > 5 && page.language === 'en', page);
+  await wait(3500);
+  ok('turning pages leaves the book\'s note as it was', await app.vault.read(note) === noteBefore, await app.vault.read(note));
   await P.flush(deskFile);
   const st = JSON.parse(await app.vault.read(deskFile));
   ok('the desk file keeps the place', st.v === 1 && st.book === book.path && st.spread > 0 && Array.isArray(st.at) && !('pdf' in st) && typeof st.saved === 'string', st);
@@ -178,7 +179,7 @@ try {
   await P.flush(shortDesk);
   const stS = JSON.parse(await app.vault.read(shortDesk));
   ok('the desk file keeps the place and the marks', stS.spread === 40 && stS.stickies[80] && stS.stickies[80][0].t === 'far in', stS);
-  ok('the book’s note keeps its page', fmOf(shortNote).current_page === 81, fmOf(shortNote));
+  ok('the book’s note is not touched', fmOf(shortNote).current_page === 81, fmOf(shortNote));
   await vS.desk.goTo('#page=1');
   await wait(300);
   await P.flush(shortDesk);
@@ -210,19 +211,9 @@ try {
   app.setting.open(); app.setting.openTabById('book-desk');
   await wait(500);
   const names = [...app.setting.tabContentContainer.querySelectorAll('.setting-item-name')].map(n => n.textContent);
-  ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'Keep the page in the book’s note', 'New highlights', 'Highlights heading', 'Desk guide', 'Highlights', 'Reading progress'].every(n => names.includes(n)) && names.length === 8, names);   // with the two group headings
-  const pageToggle = [...app.setting.tabContentContainer.querySelectorAll('.setting-item')].find(x => /Keep the page/.test(x.textContent));
-  const sw = pageToggle && pageToggle.querySelector('.checkbox-container');
-  if (sw) sw.click();
-  await wait(300);
-  const offValue = P.settings.followPage;
-  P.queueCardPage(book, [4], 100);
-  const queuedOff = P.cardTimers.has(book.path);
-  if (sw) sw.click();
-  await wait(300);
-  ok('the page switch turns following the page off and on', offValue === false && !queuedOff && P.settings.followPage === true && /current_page/.test(pageToggle.textContent), [offValue, queuedOff, P.settings.followPage]);
+  ok('the settings are all there, and only those', ['Desk folder', 'Book notes folder', 'New highlights', 'Highlights heading', 'Desk guide', 'Highlights'].every(n => names.includes(n)) && names.length === 6, names);   // with the group's heading
   app.setting.close();
-  ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e)).length === 0, errors);
+  ok('nothing was reported as an error', errors.filter(e => !/damaged|not an EPUB/.test(e) && !/K-Plex/.test(e)).length === 0, errors);   // (another plugin of this vault reacts to the test's files)
 } finally {
   F.awake(false);
   console.error = realError;

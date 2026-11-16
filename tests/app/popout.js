@@ -9,7 +9,7 @@ const results = [], ok = (name, cond, detail) => results.push({ name, pass: !!co
 const until = async (fn, ms = 10000) => { const t = performance.now(); for (;;) { const v = await fn(); if (v) return v; if (performance.now() - t > ms) return null; await wait(100); } };
 const dir = 'book-desk-test-' + Date.now().toString(36), keep = P.settings, realSave = P.saveSettings;
 P.saveSettings = async () => {};
-P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir, followPage: false };
+P.settings = { ...keep, dataFolder: `${dir}/desks`, notesFolder: dir };
 const para = `<p>${'The quick brown fox jumps over the lazy dog near the quiet river bank. '.repeat(6)}</p>`;
 const bytes = epub([{ name: 'c1.xhtml', body: `<body><h1>One</h1>${para.repeat(10)}</body>`, head: '<style>h1 { color: rgb(9, 8, 7); }</style>' }, { name: 'c2.xhtml', body: `<body><h1>Two</h1>${para.repeat(10)}</body>` }]);
 let leaf;

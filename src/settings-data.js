@@ -4,15 +4,11 @@ export const DEFAULT_SETTINGS = {
   helpSeen: false,
   dataFolder: 'Book Desk',         // each book's desk: page, ink, stickies, cards, view
   notesFolder: '',                 // where new book notes are made; any note in it that links to a book is that book's note
-  followPage: false,               // the book's note keeps the page you are on (current_page) and the page count (total_pages)
   highlightTarget: 'note',         // new highlights: 'note' = into the book's note, 'clipboard' = copy the link only
   highlightHeading: 'Highlights',  // section of the book's note that new highlights go under
   paper: 'paper',                  // page colour: paper, sepia or night
   epubTextSize: 16                 // an EPUB's text size, in book units (a page is 440 wide)
 };
-
-/** The properties of the book's note that keep the page you are on and how many pages the book has. */
-export const PAGE_PROPERTY = 'current_page', TOTAL_PAGES_PROPERTY = 'total_pages';
 
 const PAPERS = new Set(['paper', 'sepia', 'night']);
 
@@ -30,8 +26,6 @@ export function readSettings(raw, normalizePath) {
     helpSeen: r.helpSeen === true,
     dataFolder: folder(r.dataFolder) || d.dataFolder,
     notesFolder: folder(r.notesFolder),
-    // settings from before the switch named the property themselves: a name meant "on"
-    followPage: typeof r.followPage === 'boolean' ? r.followPage : typeof r.pageProperty === 'string' && !!r.pageProperty.trim(),
     highlightTarget: r.highlightTarget === 'clipboard' ? 'clipboard' : 'note',
     highlightHeading: String(r.highlightHeading == null ? '' : r.highlightHeading).replace(/[\r\n]+/g, ' ').replace(/^#+\s*/, '').trim().slice(0, 120) || d.highlightHeading,
     paper: PAPERS.has(r.paper) ? r.paper : d.paper,

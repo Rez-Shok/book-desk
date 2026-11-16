@@ -2,7 +2,7 @@
 
 import { Plugin, ItemView, Notice, TFile, Keymap, Platform, normalizePath, getLinkpath } from 'obsidian';
 import { VIEW_TYPE, isBook, deskBook } from './constants.js';
-import { readSettings, PAGE_PROPERTY, TOTAL_PAGES_PROPERTY } from './settings-data.js';
+import { readSettings } from './settings-data.js';
 import { DeskSettingTab } from './settings.js';
 import { DeskView } from './view.js';
 import { BookSuggest } from './book-suggest.js';
@@ -18,7 +18,6 @@ export default class BookDeskPlugin extends Plugin {
   async onload() {
     this.settings = readSettings(await this.loadData(), normalizePath);
     this.pending = new Map();     // desk path -> { state, timer, desk, book }: a desk waiting to be written
-    this.cardTimers = new Map();  // book path -> timer: the book's note waiting for its page number
     this.hlCache = new Map();     // book path -> highlights by page
     this.hlTimer = 0;
     this.lastSaved = new Map();   // desk path -> the text this plugin last wrote there
@@ -70,8 +69,6 @@ export default class BookDeskPlugin extends Plugin {
   onunload() {
     // the last changes of each desk are written now (started here; Obsidian does not wait for them)
     for (const path of [...this.pending.keys()]) void this.writeState(path);
-    for (const t of this.cardTimers.values()) window.clearTimeout(t);
-    this.cardTimers.clear();
     window.clearTimeout(this.hlTimer);
   }
   // the settings file changed under us (Obsidian Sync, or another device)
@@ -335,25 +332,6 @@ export default class BookDeskPlugin extends Plugin {
     ea.addEmbeddable(cx - w / 2, cy - h / 2, w, h, undefined, desk);
     await ea.addElementsToView(false, true);
     if (ea.destroy) ea.destroy();
-  }
-
-  /* ---------- keep the book's note on the current page ---------- */
-  queueCardPage(file, pages, total) {
-    const prop = PAGE_PROPERTY, totalProp = TOTAL_PAGES_PROPERTY;
-    if (!pages.length || !this.settings.followPage) return;
-    window.clearTimeout(this.cardTimers.get(file.path));
-    this.cardTimers.set(file.path, window.setTimeout(() => {
-      this.cardTimers.delete(file.path);
-      const card = this.cardFor(file);
-      if (!card) return;
-      const page = Math.max(...pages) + 1;
-      const cache = this.app.metadataCache.getFileCache(card), fm = (cache && cache.frontmatter) || {};
-      if (fm[prop] === page && fm[totalProp]) return;
-      void this.app.fileManager.processFrontMatter(card, f => {
-        f[prop] = page;
-        if (!f[totalProp]) f[totalProp] = total;
-      });
-    }, 2500));
   }
 
   /* ---------- highlights: links in notes, in the format PDF++ uses ---------- */

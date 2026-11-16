@@ -92,7 +92,6 @@ export class DeskView extends FileView {
         title: note ? note.basename : (epub && epub.title) || bookFile.basename,
         state,
         save: st => P.queueSave(file, bookFile, st),
-        onSpread: (st, pages, total) => P.queueCardPage(bookFile, pages, total),
         openInPdf: page => { void app.workspace.openLinkText(`${bookFile.path}#page=${page}`, '', 'tab'); },
         notice: m => { new Notice(m, 5000); },
         helpSeen: () => !!P.settings.helpSeen,

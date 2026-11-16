@@ -71,7 +71,7 @@ try {
   box.setCssStyles({ position: 'fixed', left: '0px', top: '0px', width: '1200px', height: '800px', zIndex: '9999' });
   const root = box.createDiv(); root.setCssStyles({ height: '100%' });
   let seen = false;
-  const desk = H.createDesk(root, { epub: book, title: 'T', state: null, save: () => {}, onSpread: () => {}, notice: () => {}, helpSeen: () => seen, markHelpSeen: () => { seen = true; }, textSize: () => 16 });
+  const desk = H.createDesk(root, { epub: book, title: 'T', state: null, save: () => {}, notice: () => {}, helpSeen: () => seen, markHelpSeen: () => { seen = true; }, textSize: () => 16 });
   await desk.start();
   const guide = root.querySelector('.rd-help');
   ok('a new reader gets the guide, written out in full (Excalidraw left out when it is not there)', guide && guide.querySelectorAll('li').length === 19 && !/Excalidraw/.test(guide.textContent) && guide.querySelectorAll('kbd').length > 8 && /Turn pages:/.test(guide.textContent), guide && guide.querySelectorAll('li').length);
@@ -83,7 +83,7 @@ try {
   const pbox = document.body.createDiv();
   pbox.setCssStyles({ position: 'fixed', left: '0px', top: '0px', width: '390px', height: '700px', zIndex: '9999' });
   const proot = pbox.createDiv(); proot.setCssStyles({ height: '100%' });
-  const pdesk = H.createDesk(proot, { epub: book, title: 'T', state: null, save: () => {}, onSpread: () => {}, notice: () => {}, helpSeen: () => false, markHelpSeen: () => {}, textSize: () => 16 });
+  const pdesk = H.createDesk(proot, { epub: book, title: 'T', state: null, save: () => {}, notice: () => {}, helpSeen: () => false, markHelpSeen: () => {}, textSize: () => 16 });
   await pdesk.start();
   await wait(300);
   for (let k = 0; k < 4; k++) proot.querySelector('.rd-zoom-in').click();

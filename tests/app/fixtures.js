@@ -85,7 +85,7 @@ async function mountDesk(book, more = {}) {
   const saved = [], notices = [];
   const desk = H.createDesk(root, {
     epub: book.epub || null, pdf: book.pdf || null, pdfjs: book.pdfjs || null, title: 'Test', state: more.state || null,
-    save: st => saved.push(JSON.stringify(st)), onSpread: () => {}, openInPdf: () => {}, notice: m => notices.push(m),
+    save: st => saved.push(JSON.stringify(st)), openInPdf: () => {}, notice: m => notices.push(m),
     helpSeen: () => true, markHelpSeen: () => {}, highlights: () => more.highlights || new Map(), createHighlight: async h => { (more.made || []).push(h); return true; },
     openSource: () => {}, deleteHighlights: () => {}, paper: () => 'paper', setPaper: () => {}, quoteFor: h => JSON.stringify(h),
     textSize: () => more.textSize || 16, setTextSize: () => {}, toolbarHidden: () => false, setToolbarHidden: () => {}, defaultRtl: () => !!more.rtl, mobile: !!more.mobile
