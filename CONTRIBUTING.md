@@ -53,12 +53,11 @@ their own, and `popout.js` can open a window of its own (only with `BOOK_DESK_RE
 ## Releasing (maintainers)
 
 ```sh
-npm version 1.2.3 --no-git-tag-version    # package.json, manifest.json, manifest-beta.json, versions.json
+npm version 1.2.3 --no-git-tag-version    # package.json, manifest.json, versions.json
 git commit -am "1.2.3: what changed"
 git tag -a 1.2.3 -m "What changed, for the release notes"
 git push && git push origin 1.2.3
 ```
 
 The tag starts [the release workflow](.github/workflows/release.yml): it builds the plugin, signs the files and
-publishes the release. A pre-release for testers (`1.2.3-beta.1`) goes the same way; `npm version` then changes
-only `manifest-beta.json`, which [BRAT](https://github.com/TfTHacker/obsidian42-brat) reads.
+publishes the release.

@@ -90,13 +90,6 @@ placeholder), its desk keeps your place until you turn a page.
   carries the words.
 - Needs Obsidian 1.13 or later. EPUBs on iPhone and iPad need iOS 16.4 or later.
 
-## Beta versions
-
-New versions can be tried before they reach everyone. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat)
-from the community plugins, choose **Add beta plugin**, and enter `Rez-Shok/book-desk`. BRAT then keeps the plugin at
-the newest test version, and you can report what you find in an
-[issue](https://github.com/Rez-Shok/book-desk/issues/new/choose).
-
 ## Development
 
 ```sh
