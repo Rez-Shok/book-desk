@@ -97,10 +97,12 @@ const wait = ms => new Promise(r => window.setTimeout(r, ms));
 // Obsidian's window is often hidden while tests run: timers would then tick once a second and a tap would look like a long press
 const wc = require('electron').remote.getCurrentWebContents();
 const awake = on => wc.setBackgroundThrottling(!on);
-// a real tap (the browser's own pointer events) at a point of the window
+// real input (the browser's own pointer events) at a point of the page: Electron places it in screen units, so a page
+// zoomed with Obsidian's own zoom needs its points scaled
+const input = { sendInputEvent: ev => { const z = wc.getZoomFactor(); wc.sendInputEvent(ev.x == null ? ev : { ...ev, x: Math.round(ev.x * z), y: Math.round(ev.y * z) }); } };
 const tap = async (x, y) => {
-  wc.sendInputEvent({ type: 'mouseDown', x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 });
-  wc.sendInputEvent({ type: 'mouseUp', x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 });
+  input.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+  input.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
   await wait(150);
 };
-return { H, zip, epub, pdf, xhtml, PNG, mountDesk, wait, T, fs, concat, bytes, awake, tap };
+return { H, zip, epub, pdf, xhtml, PNG, mountDesk, wait, T, fs, concat, bytes, awake, tap, input };

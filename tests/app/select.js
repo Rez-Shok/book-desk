@@ -4,7 +4,7 @@ const T = window.__bookDeskTest;
 const F = new Function(require('fs').readFileSync(T.fixtures, 'utf8'))();
 const { mountDesk, wait } = F;
 const results = [], ok = (name, cond, detail) => results.push({ name, pass: !!cond, detail: cond ? undefined : detail });
-const wc = require('electron').remote.getCurrentWebContents();
+const wc = F.input;   // real pointer events, placed for the page's zoom
 
 // ---- a page of 440 x 620: one English line, then two Persian lines drawn letter by letter from the left ----
 const W = 440, H = 620, items = [];

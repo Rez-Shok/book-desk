@@ -3,7 +3,7 @@ const T = window.__bookDeskTest;
 const F = new Function(require('fs').readFileSync(T.fixtures, 'utf8'))();
 const { H, epub, mountDesk, wait } = F;
 const results = [], ok = (name, cond, detail) => results.push({ name, pass: !!cond, detail: cond ? undefined : detail });
-const wc = require('electron').remote.getCurrentWebContents();
+const wc = F.input;   // real pointer events, placed for the page's zoom
 const drag = async pts => {
   wc.sendInputEvent({ type: 'mouseDown', x: pts[0][0], y: pts[0][1], button: 'left', clickCount: 1 });
   for (const [x, y] of pts.slice(1)) { wc.sendInputEvent({ type: 'mouseMove', x, y, button: 'left', modifiers: ['leftButtonDown'] }); await wait(30); }
