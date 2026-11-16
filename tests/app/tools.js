@@ -94,6 +94,19 @@ try {
   ok('the end of the guide can be scrolled into view on a phone, zoomed in', gb.bottom <= db.bottom && gb.bottom > db.top, [Math.round(gb.top), Math.round(gb.bottom), Math.round(db.top), Math.round(db.bottom), proot.querySelector('.rd-zoom-val').textContent]);
   pdesk.destroy(); pbox.remove();
 
+  // the desk keeps its own light look under Obsidian's dark theme; only its Night paper makes it dark
+  const looks = async paper => {
+    const d = await mountDesk({ epub: book }, { state: { spread: 1 }, paper, theme: 'theme-dark' });
+    try {
+      await wait(300);
+      const desk = d.root.matches('.rdesk') ? d.root : d.root.querySelector('.rdesk');
+      return { bar: getComputedStyle(d.root.querySelector('.rd-toolbar')).backgroundColor, text: getComputedStyle(desk).getPropertyValue('--text-normal').trim(), wood: getComputedStyle(desk).getPropertyValue('--rd-desk').trim() };
+    } finally { d.remove(); }
+  };
+  const day = await looks('paper'), night = await looks('night');
+  ok('under a dark theme the desk stays light', day.bar === 'rgb(255, 255, 255)' && day.text === '#222222' && day.wood === '#a9794d', day);
+  ok('its Night paper makes it dark, toolbar and all', night.bar === 'rgb(28, 28, 28)' && night.text === '#dadada' && night.wood === '#1b1511', night);
+
   // an EPUB highlight that no note takes stays on the desk too, as a mark in the book's text
   const made3 = [];
   let em = await mountDesk({ epub: book }, { state: { spread: 1 }, made: made3, copyOnly: true });

@@ -14,14 +14,14 @@
   --rd-card: #fffdf7; --rd-card-line: #c4d7ea; --rd-card-margin: #e2a19b; --rd-note-ink: #2a2419;
   --rd-shadow: rgba(45, 24, 8, .42);
   --rd-hand: "Noteworthy", "Bradley Hand", "Segoe Print", var(--font-text);
+  /* The desk keeps its own light look whatever Obsidian's theme is: its toolbar and panels use these colours
+     (Obsidian's own light ones) in place of the theme's. Only the Night paper makes the desk dark (below). */
+  --background-primary: #ffffff; --background-secondary: #f6f6f6; --background-modifier-form-field: #ffffff;
+  --background-modifier-hover: rgba(0, 0, 0, .067); --background-modifier-border: #e0e0e0;
+  --background-modifier-active-hover: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
+  --text-normal: #222222; --text-muted: #5c5c5c; --text-faint: #ababab; --icon-color: #5c5c5c; --icon-color-hover: #222222;
+  color-scheme: light; color: var(--text-normal);
   display: flex; flex-direction: column; height: 100%;
-}
-.theme-dark .rdesk {
-  --rd-desk: #2d2018; --rd-desk-2: #1b130e; --rd-grain: rgba(0, 0, 0, .28); --rd-lamp: rgba(255, 196, 120, .10);
-  --rd-paper: #ebe2ce; --rd-paper-line: #b3a687; --rd-endpaper: #b7aa8b;
-  --rd-cover: #2a4035; --rd-cover-2: #1c2c24;
-  --rd-sticky-y: #e8cf66; --rd-sticky-p: #e3a597; --rd-sticky-b: #a8c4de; --rd-sticky-g: #b4d196;
-  --rd-card: #efe8d8; --rd-card-line: #a9bfd4; --rd-shadow: rgba(0, 0, 0, .65);
 }
 
 /* ---------- toolbar ---------- */
@@ -97,7 +97,6 @@
 .rd-face > .rd-shade { background: linear-gradient(to left, rgba(20,10,0,1), rgba(20,10,0,.25)); }
 .rd-face.back > .rd-shade { background: linear-gradient(to right, rgba(20,10,0,1), rgba(20,10,0,.25)); }
 .rd-pc { position: absolute; inset: 0; overflow: hidden; background: #fff; }
-.theme-dark .rdesk:not(.rd-paper-night):not(.rd-paper-sepia) .rd-pc { filter: brightness(.93) sepia(.08); }
 .rd-pc canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 svg.rd-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: hidden; }   /* ink stays on its page */
@@ -281,6 +280,11 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
   --rd-paper: #2a2722; --rd-paper-line: #4b463c; --rd-endpaper: #2f2b25;
   --rd-desk: #1b1511; --rd-desk-2: #110c09; --rd-lamp: rgba(255, 196, 120, .07);
   --rd-cover: #1f2e28; --rd-cover-2: #15201b;
+  /* and its toolbar and panels go dark with it (Obsidian's own dark colours) */
+  --background-primary: #1c1c1c; --background-secondary: #282828; --background-modifier-form-field: #2e2e2e;
+  --background-modifier-hover: rgba(255, 255, 255, .067); --background-modifier-border: #333333;
+  --text-normal: #dadada; --text-muted: #b3b3b3; --text-faint: #666666; --icon-color: #b3b3b3; --icon-color-hover: #dadada;
+  color-scheme: dark;
 }
 /* the whole page turned over at once: paper dark, ink light, a highlight a deep band behind light words */
 .rdesk.rd-paper-night .rd-pageface { filter: invert(1) hue-rotate(180deg) brightness(.86) contrast(.92); }
@@ -336,7 +340,6 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
 
 /* ---------- EPUB pages: the book's own text, set in one column per page ---------- */
 .rd-epub-page { position: absolute; inset: 0; overflow: hidden; background: #fffefb; color: #1d1b18; }
-.theme-dark .rdesk:not(.rd-paper-night):not(.rd-paper-sepia) .rd-epub-page { filter: brightness(.93) sepia(.08); }
 .rd-book.rtl .rd-epub-page { transform: scaleX(-1); }
 .rd-epub-clip { position: absolute; overflow: clip; contain: layout paint; }   /* whatever the book's styles say, nothing leaves the page */
 .rd-epub-measure { position: fixed; left: -40000px; top: 0; width: var(--epub-w); height: var(--epub-colh); overflow: hidden; visibility: hidden; }

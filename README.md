@@ -22,7 +22,8 @@ edges that show how far you are, a pen, a highlighter, sticky notes and index ca
   Arabic PDFs do), so the words you copy, search for and quote come out right.
 - **Read EPUBs** as pages too, with the text size you like. Your place survives a change of text size.
 - **Right-to-left books** (Persian, Arabic, Hebrew) open with the spine on the right.
-- **Paper, sepia and night** page colours.
+- **Paper, sepia and night** page colours. The desk keeps its own light look under a dark Obsidian theme; Night
+  makes it dark.
 
 ## How to start
 

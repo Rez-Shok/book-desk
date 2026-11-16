@@ -78,7 +78,7 @@ async function mountDesk(book, more = {}) {
   let style = document.getElementById('book-desk-test-style');
   if (!style) { style = document.createElement('style'); style.id = 'book-desk-test-style'; document.head.appendChild(style); }
   style.textContent = fs.readFileSync(T.styles, 'utf8');   // the styles as they are now, not as they were when the app last loaded them
-  const box = document.body.createDiv({ cls: 'book-desk-test-box' });
+  const box = document.body.createDiv({ cls: ['book-desk-test-box', ...(more.theme ? [more.theme] : [])] });
   box.setCssStyles({ position: 'fixed', left: '0px', top: '0px', width: (more.width || 1200) + 'px', height: (more.height || 800) + 'px', zIndex: '9999', background: '#888' });
   const root = box.createDiv();
   root.setCssStyles({ height: '100%' });
@@ -87,7 +87,7 @@ async function mountDesk(book, more = {}) {
     epub: book.epub || null, pdf: book.pdf || null, pdfjs: book.pdfjs || null, title: 'Test', state: more.state || null,
     save: st => saved.push(JSON.stringify(st)), openInPdf: () => {}, notice: m => notices.push(m),
     helpSeen: () => true, markHelpSeen: () => {}, highlights: () => more.highlights || new Map(), createHighlight: async h => { (more.made || []).push(h); return !more.copyOnly; },
-    openSource: () => {}, deleteHighlights: () => {}, paper: () => 'paper', setPaper: () => {}, quoteFor: h => JSON.stringify(h),
+    openSource: () => {}, deleteHighlights: () => {}, paper: () => more.paper || 'paper', setPaper: () => {}, quoteFor: h => JSON.stringify(h),
     textSize: () => more.textSize || 16, setTextSize: () => {}, toolbarHidden: () => false, setToolbarHidden: () => {}, defaultRtl: () => !!more.rtl, mobile: !!more.mobile
   });
   await desk.start();

@@ -161,7 +161,7 @@ const GUIDE = [
   ['Zoom to a page', ['double-tap (or double-click) the middle of a page to fit it to the screen; again to see the whole book. Zoomed in, a tap on the edge or ', K('→'), ' moves through the pages in reading order.']],
   ['Zoom and move', ['pinch, Ctrl + scroll, or ', K('+'), ' ', K('−'), '; the zoom stays under the pointer. Drag the empty desk (or scroll) to move around; double-click the desk, or ', K('0'), ', to bring the book back.']],
   ['Select', ['the Select tool (or ', K('S'), ') selects the book’s text like any text: copy it, highlight it, or copy it as a quote with its link. Scanned books have no text to select.']],
-  ['Page colour', ['the Paper / Sepia / Night button; it applies to every book.']],
+  ['Page colour', ['the Paper / Sepia / Night button; it applies to every book. The desk stays light in a dark theme: Night makes it dark.']],
   ['EPUB books', ['A− and A+ set the text size; the book is set again and stays at your place. Highlights go into the book’s note like a PDF’s.']],
   ['Pen', ['write straight on the page.']],
   ['Highlighter', ['drag over text to highlight it word by word. It is saved as a link in the book’s note (the same kind PDF++ makes); click a highlight to open that note. A highlight only copied stays on the desk. Off the text it draws freely.']],
