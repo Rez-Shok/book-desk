@@ -1769,7 +1769,7 @@ export function createDesk(root, host) {
     const pos = S.help || (S.help = geom.wide ? { x: Math.round(geom.BW - FM + 24), y: 330 } : { x: Math.round(geom.BW / 2 - 136), y: Math.round(geom.BH + 260) });
     const el = W.createDiv();
     el.className = 'rd-card rd-help';
-    el.style.left = pos.x + 'px'; el.style.top = pos.y + 'px'; el.style.setProperty('--r', '1deg');
+    el.style.left = pos.x + 'px'; el.style.top = pos.y + 'px';   // (its slight turn is in styles.css)
     buildGuide(el, { excalidraw: !!(host.excalidraw && host.excalidraw()) });
     el.querySelector('.rd-del').addEventListener('click', () => { host.markHelpSeen(); el.remove(); });
     dragByHead(el, el.querySelector('.rd-card-head'), pos);
