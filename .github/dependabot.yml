@@ -8,6 +8,10 @@ updates:
     groups:
       build-tools:
         patterns: ['*']
+    # a major version of the lint or build tools is taken by hand: the type-aware lint must support it first
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
