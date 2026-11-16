@@ -33,7 +33,7 @@ jobs:
           if [ "$version" != "$GITHUB_REF_NAME" ]; then echo "The tag $GITHUB_REF_NAME is not the version in manifest.json ($version)"; exit 1; fi
           mkdir release
           cp main.js manifest.json styles.css release/
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: release/*
       - name: Publish the release
