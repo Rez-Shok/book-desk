@@ -1,6 +1,6 @@
 /* The Obsidian side: a file view for books (PDF, EPUB), each book's desk file, the book's note, highlights as links. */
 
-import { Plugin, ItemView, Notice, TFile, Keymap, normalizePath, getLinkpath } from 'obsidian';
+import { Plugin, ItemView, Notice, TFile, Keymap, Platform, normalizePath, getLinkpath } from 'obsidian';
 import { VIEW_TYPE, isBook, deskBook } from './constants.js';
 import { readSettings, PAGE_PROPERTY, TOTAL_PAGES_PROPERTY } from './settings-data.js';
 import { DeskSettingTab } from './settings.js';
@@ -164,17 +164,23 @@ export default class BookDeskPlugin extends Plugin {
     if (f) void this.openBook(f);
     else new Notice('Open a PDF or EPUB, or a note that links to one, first.');
   }
-  async openBook(file) {
+  async openBook(file, mobile = Platform.isMobile) {
     const desk = file.extension === 'desk' ? file : await this.deskFileFor(file);
     const open = this.app.workspace.getLeavesOfType(VIEW_TYPE).find(l => {
       const st = l.getViewState().state;
       return st && st.file === desk.path && !l.view.containerEl.closest('.excalidraw');
     });
-    const leaf = open || this.app.workspace.getLeaf('tab');
+    const leaf = open || (mobile && this.pdfLeafOf(file)) || this.app.workspace.getLeaf('tab');
     if (!open) await leaf.setViewState({ type: VIEW_TYPE, state: { file: desk.path }, active: true });
     await this.app.workspace.revealLeaf(leaf);
     await leaf.loadIfDeferred();
     return leaf;
+  }
+  // the tab that shows this PDF in Obsidian's own PDF view, when it is the one in use. On a phone the desk takes its
+  // place: a large book read twice over (once by that view, once by the desk) is more than a phone has room for.
+  pdfLeafOf(file) {
+    const leaf = this.app.workspace.getMostRecentLeaf();
+    return leaf && leaf.view && leaf.view.getViewType() === 'pdf' && leaf.view.file === file ? leaf : null;
   }
   // right-to-left: the book's note says the language, or else the text of the first pages decides
   async defaultRtl(file, pdf, epub) {

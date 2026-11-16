@@ -186,6 +186,21 @@ try {
   await app.vault.modifyBinary(short, ab(F.pdf(6)));
   ok('a book file changed while it is open is opened again', !!(await until(() => vS.ready && vS.contentEl.querySelector('.rd-progress') && /of 6$/.test(vS.contentEl.querySelector('.rd-progress').textContent), 6000)), vS.contentEl.querySelector('.rd-progress') && vS.contentEl.querySelector('.rd-progress').textContent);
 
+  // ---- on a phone the desk takes the place of the PDF's own tab (a large book is not read twice over) ----
+  const viaPdf = async (name, mobile) => {
+    const f = await app.vault.createBinary(`${dir}/${name}.pdf`, ab(F.pdf(3)));
+    const pl = app.workspace.getLeaf('tab'); mine.push(pl);
+    await pl.openFile(f, { active: true });
+    app.workspace.setActiveLeaf(pl, { focus: false });
+    await wait(300);
+    const found = P.pdfLeafOf(f) === pl;
+    const dl = await P.openBook(f, mobile); mine.push(dl);
+    return { found, same: dl === pl, pdfStays: pl.view.getViewType() === 'pdf', desk: dl.view.getViewType() === 'book-desk' };
+  };
+  const onPhone = await viaPdf('Phone Book', true), onComputer = await viaPdf('Computer Book', false);
+  ok('on a phone, from the PDF\'s own tab, the desk opens in that tab', onPhone.found && onPhone.same && onPhone.desk, onPhone);
+  ok('on a computer the PDF\'s tab stays and the desk gets a tab of its own', onComputer.found && !onComputer.same && onComputer.pdfStays && onComputer.desk, onComputer);
+
   // ---- the guide ----
   const g1 = document.createElement('div'), g2 = document.createElement('div');
   F.H.buildGuide(g1, { excalidraw: false }); F.H.buildGuide(g2, { excalidraw: true });

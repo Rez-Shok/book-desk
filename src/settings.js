@@ -38,7 +38,7 @@ export class DeskSettingTab extends PluginSettingTab {
         items: [
           {
             name: 'Keep the page in the book’s note',
-            desc: `As you turn pages, the book’s note keeps the page you are on in a “${PAGE_PROPERTY}” property, and how many pages the book has in “${TOTAL_PAGES_PROPERTY}”, so a base or a search can show how far you are.`,
+            desc: `The desk always remembers where you are in a book. Turn this on to also write it into the book’s note, as “${PAGE_PROPERTY}: 124” and “${TOTAL_PAGES_PROPERTY}: 691”, so a base of your books can show how far you are in each.`,
             control: { type: 'toggle', key: 'followPage', defaultValue: false }
           }
         ]
