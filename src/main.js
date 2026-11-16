@@ -382,7 +382,7 @@ export default class BookDeskPlugin extends Plugin {
       new Notice(`Highlight added to “${note.basename}”.`, 3000);
       return true;
     }
-    new Notice('Highlight copied: paste it into a note to keep it.', 6000);
+    new Notice('Highlight copied, and kept on the desk. Paste it into a note to keep it there too.', 6000);
     return false;
   }
   // append `md` at the end of the section whose heading contains settings.highlightHeading (made if missing)

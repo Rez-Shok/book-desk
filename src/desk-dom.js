@@ -164,7 +164,7 @@ const GUIDE = [
   ['Page colour', ['the Paper / Sepia / Night button; it applies to every book.']],
   ['EPUB books', ['A− and A+ set the text size; the book is set again and stays at your place. Highlights go into the book’s note like a PDF’s.']],
   ['Pen', ['write straight on the page.']],
-  ['Highlighter', ['drag over text to highlight it word by word. It is saved as a link in the book’s note (the same kind PDF++ makes); click a highlight to open that note. Off the text it draws freely.']],
+  ['Highlighter', ['drag over text to highlight it word by word. It is saved as a link in the book’s note (the same kind PDF++ makes); click a highlight to open that note. A highlight only copied stays on the desk. Off the text it draws freely.']],
   ['RTL', ['for right-to-left books the spine moves to the right and pages turn the other way.']],
   ['Search', ['the Search button, ', K('Cmd/Ctrl+F'), ' or ', K('/'), '. Enter goes to the next match, Shift+Enter to the one before.']],
   ['Notes', ['the Notes button (or ', K('N'), ') lists your highlights, sticky notes, cards and pen marks in page order; click one to go to it.']],

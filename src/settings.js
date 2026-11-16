@@ -23,7 +23,7 @@ export class DeskSettingTab extends PluginSettingTab {
           {
             name: 'New highlights',
             desc: 'A highlight is a link in a note, in the format PDF++ uses, so PDF++ shows it too and the book file never changes. An EPUB’s highlights are links of the same kind, to a chapter and a place in its text.',
-            control: { type: 'dropdown', key: 'highlightTarget', defaultValue: 'note', options: { note: 'Add them to the book’s note', clipboard: 'Only copy them' } }
+            control: { type: 'dropdown', key: 'highlightTarget', defaultValue: 'note', options: { note: 'Add them to the book’s note', clipboard: 'Only copy them (they stay on the desk)' } }
           },
           {
             name: 'Highlights heading',

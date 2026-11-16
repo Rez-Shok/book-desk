@@ -54,7 +54,8 @@ export function createDesk(root, host) {
   // the state comes from a file: it is checked and brought into shape before anything here trusts it
   const S = normalizeDeskState(host.state || {}) || normalizeDeskState({});
   delete S.fingers; delete S.zoom;   // the finger is gone (sticky-note flags mark places now); zoom lives in S.view
-  let highlights = (host.highlights && host.highlights()) || new Map();   // page index -> PDF++ highlights
+  let noteHl = (host.highlights && host.highlights()) || new Map();       // the highlights the notes hold
+  let highlights = withDeskHl(noteHl);                                     // page index -> PDF++ highlights, the desk's own among them
   let epubHl = epub ? highlights : null;                                  // an EPUB's, by chapter
   if (epub) highlights = new Map();
   // a place the desk file remembers past the end of this PDF (a shorter file: another edition, a placeholder):
@@ -696,18 +697,48 @@ export function createDesk(root, host) {
   }
   function hlAt(slot, e) { if (epub) return epubHlAt(slot, e); const hit = hlHitAt(slot, e); return hit ? hit.h : null; }
   const madeHere = [];   // highlights made on this desk that the notes don't show yet
+  /* Highlights kept on the desk itself (S.hl, in the .desk file): made while no note took them (the book has no note,
+     or highlights are only copied). They are drawn and erased like the others. Once a note holds one too (its
+     copied link was pasted there), it is the note's, and leaves the desk. */
+  function sameHl(h, d) { return epub ? h.a === d.a && h.b === d.b : h.b === d.b && h.bo === d.bo && h.e === d.e && h.eo === d.eo; }
+  function withDeskHl(map) {
+    const out = new Map([...map].map(([k, list]) => [k, list.slice()]));
+    S.hl = S.hl.filter(d => !(map.get(epub ? d.ci : d.p) || []).some(h => sameHl(h, d)));
+    for (const d of S.hl) {
+      const key = epub ? d.ci : d.p;
+      if (!out.has(key)) out.set(key, []);
+      out.get(key).push(epub ? { ci: d.ci, a: d.a, b: d.b, color: d.c, desk: d } : { b: d.b, bo: d.bo, e: d.e, eo: d.eo, color: d.c, desk: d });
+    }
+    return out;
+  }
+  function keepOnDesk(list) {
+    if (!list.length) return;
+    S.hl.push(...list);
+    save();
+    setHighlights(noteHl);
+  }
+  // a highlight kept on the desk is copied again, to be pasted into a note
+  async function copyDeskHl(d) {
+    const q = epub ? { ci: d.ci, a: d.a, b: d.b, colorName: d.c, text: d.t, label: d.l } : { page: d.p + 1, b: d.b, bo: d.bo, e: d.e, eo: d.eo, colorName: d.c, text: d.t };
+    const md = host.quoteFor ? host.quoteFor(q) : d.t;
+    try { await navigator.clipboard.writeText(md); host.notice('Highlight copied again: paste it into a note to keep it there.'); }
+    catch { host.notice('The highlight could not be copied here.'); }
+  }
   function setHighlights(map) {
+    noteHl = map;
+    const before = S.hl.length, all = withDeskHl(map);
+    if (S.hl.length !== before) save();   // a highlight kept here is in a note now
     if (epub) {
-      epubHl = map;
+      epubHl = all;
       for (let i = madeHere.length - 1; i >= 0; i--) {
         const m = madeHere[i];
         if ((map.get(m.ci) || []).some(h => h.a === m.a && h.b === m.b)) madeHere.splice(i, 1);
       }
-      if (L) { highlights = epubByPage(map); paintStatic(); }
+      if (L) { highlights = epubByPage(all); paintStatic(); }
       if (typeof refreshAnnosSoon === 'function') refreshAnnosSoon();
       return;
     }
-    highlights = map;
+    highlights = all;
     if (typeof refreshAnnosSoon === 'function') refreshAnnosSoon();
     for (let i = madeHere.length - 1; i >= 0; i--) {
       const m = madeHere[i];
@@ -984,7 +1015,7 @@ export function createDesk(root, host) {
       const ln = linkAt(slot, ev);
       if (ln) { els.tip.hidden = true; void followLink(ln); return; }
       const h = hlAt(slot, ev);
-      if (h) { els.tip.hidden = true; return host.openSource && host.openSource(h, ev); }
+      if (h) { els.tip.hidden = true; if (h.desk) return void copyDeskHl(h.desk); return host.openSource && host.openSource(h, ev); }
     }
     const zone = r.width * (tool === 'read' ? 1 / 3 : EDGE());
     if (side === 'r' ? sx > r.right - zone : sx < r.left + zone) { lastTap = null; return readingStep(side === 'r' ? 1 : -1); }
@@ -1147,14 +1178,17 @@ export function createDesk(root, host) {
     if (!parts.length || !host.createHighlight) return false;
     const items = info.items;
     let kept = false;
+    const onDesk = [];
     try {
       for (const [k, x] of parts.entries()) {
         const text = whole == null ? rangeText(modelOf(info), items, x) : (k === 0 ? whole : '');
         const ok = await host.createHighlight({ page: p + 1, colorName: hue(color).name, text, ...x });
         if (ok) madeHere.push({ p, ...x });
+        else onDesk.push({ p, b: x.b, bo: x.bo, e: x.e, eo: x.eo, c: hue(color).name, t: text });   // no note took it: the desk keeps it
         kept = ok || kept;
       }
     } catch (err) { console.error('The highlight could not be written:', err); }
+    keepOnDesk(onDesk);
     return kept;
   }
 
@@ -1177,13 +1211,16 @@ export function createDesk(root, host) {
   async function makeEpubHighlights(ci, parts) {
     if (!parts.length || !host.createHighlight) return false;
     let kept = false;
+    const onDesk = [];
     try {
       for (const [a, b] of parts) {
-        const ok = await host.createHighlight(epubQuote(ci, a, b));
+        const q = epubQuote(ci, a, b), ok = await host.createHighlight(q);
         if (ok) madeHere.push({ ci, a, b, hex: hue(color).hex });
+        else onDesk.push({ ci, a, b, c: q.colorName, t: q.text, l: q.label });   // no note took it: the desk keeps it
         kept = ok || kept;
       }
     } catch (err) { console.error('The highlight could not be written:', err); }
+    keepOnDesk(onDesk);
     paintStatic();
     return kept;
   }
@@ -1470,8 +1507,10 @@ export function createDesk(root, host) {
       };
       rub(e);
       onDrag(rub, () => {
-        // a text highlight lives as a link in a note: erasing it takes the link out of that note
-        if (rubbed.size && host.deleteHighlights) host.deleteHighlights([...rubbed].map(hit => hit.h));
+        // a text highlight lives as a link in a note: erasing it takes the link out of that note (or off the desk)
+        const gone = [...rubbed].map(hit => hit.h), inNotes = gone.filter(h => !h.desk);
+        if (gone.length > inNotes.length) { S.hl = S.hl.filter(d => !gone.some(h => h.desk === d)); save(); setHighlights(noteHl); }
+        if (inNotes.length && host.deleteHighlights) host.deleteHighlights(inNotes);
       }, () => rubbed.forEach(hit => fade(hit, false)));
       return;
     }
@@ -1697,7 +1736,7 @@ export function createDesk(root, host) {
           placeTip(e, ln.page != null ? `Go to p. ${ln.page + 1}` : 'Go to…');
           if (ln.page === undefined) void linkPage(ln).then(pg => { if (pg != null && !els.tip.hidden && /^Go to/.test(els.tip.textContent)) els.tip.textContent = `Go to p. ${pg + 1}`; });
         }
-      } else if (h) placeTip(e, `${host.sourceLabel ? host.sourceLabel(h) : h.source} · click to open`);
+      } else if (h) placeTip(e, h.desk ? 'Kept on this desk · click to copy it again' : `${host.sourceLabel ? host.sourceLabel(h) : h.source} · click to open`);
       else els.tip.hidden = true;
     });
     slot.addEventListener('pointerleave', () => { slot.classList.remove('on-hl'); els.tip.hidden = true; });
@@ -2090,7 +2129,7 @@ export function createDesk(root, host) {
         body.textContent = '…';
         if (epub) body.textContent = epubTextOf(epub, x.h.ci, x.h.a, x.h.b, D, true) || '(highlight)';
         else pageSearchText(x.p).then(t => { body.textContent = rangeText(t.model, t.items, x.h) || '(highlight)'; }).catch(() => {});
-        sub.textContent = host.sourceLabel ? host.sourceLabel(x.h) : x.h.source;
+        sub.textContent = x.h.desk ? 'Kept on this desk' : host.sourceLabel ? host.sourceLabel(x.h) : x.h.source;
       } else if (x.kind === 'sticky') { body.textContent = firstLine(x.nt.t) || '(empty sticky note)'; sub.textContent = 'Sticky note'; }
       else if (x.kind === 'card') { body.textContent = firstLine(x.nt.t) || '(empty card)'; sub.textContent = 'Card on the desk'; }
       else { body.textContent = `${x.count} pen mark${x.count > 1 ? 's' : ''}` + (x.hl ? `, ${x.hl} with the highlighter` : ''); sub.textContent = 'Ink'; }

@@ -94,6 +94,38 @@ try {
   ok('the end of the guide can be scrolled into view on a phone, zoomed in', gb.bottom <= db.bottom && gb.bottom > db.top, [Math.round(gb.top), Math.round(gb.bottom), Math.round(db.top), Math.round(db.bottom), proot.querySelector('.rd-zoom-val').textContent]);
   pdesk.destroy(); pbox.remove();
 
+  // an EPUB highlight that no note takes stays on the desk too, as a mark in the book's text
+  const made3 = [];
+  let em = await mountDesk({ epub: book }, { state: { spread: 1 }, made: made3, copyOnly: true });
+  try {
+    await wait(600);
+    // words that are on the open page (a chapter's text runs on in columns the page does not show)
+    let range = null;
+    for (const sl of em.root.querySelectorAll('.rd-slot.rd-page')) {
+      const clip = sl.querySelector('.rd-epub-clip'), flow = sl.querySelector('.rd-epub-flow');
+      if (!clip || !flow) continue;
+      const box = clip.getBoundingClientRect(), walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
+      for (let tn = walker.nextNode(); tn && !range; tn = walker.nextNode()) {
+        if (tn.textContent.length < 30) continue;
+        const r = document.createRange(); r.setStart(tn, 4); r.setEnd(tn, 19);
+        const rr = r.getBoundingClientRect();
+        if (rr.width && rr.left >= box.left && rr.right <= box.right && rr.top >= box.top && rr.bottom <= box.bottom) range = r;
+      }
+      if (range) break;
+    }
+    getSelection().removeAllRanges(); getSelection().addRange(range);
+    await wait(200);
+    em.root.querySelector('.rd-sel-hl').click();
+    await wait(900);
+    const st3 = JSON.parse(em.saved[em.saved.length - 1]);
+    ok('an EPUB highlight no note takes is kept on the desk, as a mark', made3.length === 1 && st3.hl.length === 1 && st3.hl[0].ci != null && st3.hl[0].b > st3.hl[0].a && em.root.querySelectorAll('.rd-slot.rd-page mark.rd-ehl').length > 0, [made3.length, st3.hl, em.root.querySelectorAll('mark.rd-ehl').length]);
+    const kept3 = em.saved[em.saved.length - 1];
+    em.remove();
+    em = await mountDesk({ epub: book }, { state: JSON.parse(kept3) });
+    await wait(900);
+    ok('and is marked again when the book is opened again', em.root.querySelectorAll('.rd-slot.rd-page mark.rd-ehl').length > 0, em.root.querySelectorAll('mark.rd-ehl').length);
+  } finally { getSelection().removeAllRanges(); em.remove(); }
+
   // a large page zoomed in: on a phone no page is drawn larger than 5.2 million pixels (as in Obsidian's own PDF view)
   const PW0 = 1224, PH0 = 1584;   // a page of 17 x 22 inches
   const bigPage = {

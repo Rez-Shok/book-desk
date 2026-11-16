@@ -186,6 +186,33 @@ try {
   finger(46)('pointermove', window, px + 120, py - 80);   // another pointer's move, while finger 45 holds still
   ok('a drag is not moved by another pointer', world.style.transform === w1, [w1, world.style.transform]);
   f45('pointerup', window, px, py);
+
+  // ---- a highlight that no note takes (it is only copied) stays on the desk ----
+  m.remove();
+  const made2 = [];
+  m = await mountDesk({ pdf }, { state: { spread: 1, rtl: false, board: 1 }, made: made2, copyOnly: true });
+  await wait(900);
+  let pr = m.root.querySelector('.rd-pr'), pr0 = pr.getBoundingClientRect();
+  const atP = (x, y) => [Math.round(pr0.left + x / W * pr0.width), Math.round(pr0.top + (H - y) / H * pr0.height)];
+  m.root.querySelector('[data-tool="select"]').click();
+  await wait(300);
+  await drag([atP(264, 494), atP(260, 485), atP(272, 464)]);
+  m.root.querySelector('.rd-sel-hl').click();
+  await wait(900);
+  let st2 = JSON.parse(m.saved[m.saved.length - 1]);
+  ok('a highlight no note takes is kept on the desk, and shown', made2.length >= 1 && st2.hl.length >= 1 && st2.hl[0].p === 2 && pr.querySelectorAll('.rd-hl-layer .rd-hl').length > 0, [made2.length, st2.hl, pr.querySelectorAll('.rd-hl-layer .rd-hl').length]);
+  const kept = m.saved[m.saved.length - 1];
+  m.remove();
+  m = await mountDesk({ pdf }, { state: JSON.parse(kept) });
+  await wait(1200);
+  pr = m.root.querySelector('.rd-pr'); pr0 = pr.getBoundingClientRect();
+  ok('and is there again when the book is opened again', pr.querySelectorAll('.rd-hl-layer .rd-hl').length > 0, pr.querySelectorAll('.rd-hl-layer .rd-hl').length);
+  m.root.querySelector('[data-tool="erase"]').click();
+  await wait(300);
+  await drag([atP(205, 494), atP(260, 494), atP(316, 494), atP(222, 464), atP(316, 464)]);
+  await wait(400);
+  st2 = JSON.parse(m.saved[m.saved.length - 1]);
+  ok('the eraser takes it off the desk', st2.hl.length === 0 && pr.querySelectorAll('.rd-hl-layer .rd-hl').length === 0, [st2.hl, pr.querySelectorAll('.rd-hl-layer .rd-hl').length]);
 } finally {
   navigator.clipboard.writeText = realWrite;
   F.awake(false);

@@ -1,4 +1,5 @@
-/* A desk file (.desk) is a small JSON file: the page you are on, pen marks, sticky notes, cards and the view.
+/* A desk file (.desk) is a small JSON file: the page you are on, pen marks, sticky notes, cards, the view, and the
+   text highlights that no note holds.
    It may come from another device, another version of the plugin or another person, so nothing in it is taken
    on trust: every value is checked and brought into range before the desk uses it. */
 
@@ -43,6 +44,22 @@ function card(nt, i) {
   if (nt.fs != null) out.fs = num(nt.fs, 9, 48, 15);
   return out;
 }
+// a text highlight kept on the desk: a PDF's (p, and the range b, bo .. e, eo of the page's text items, as in a
+// PDF++ link) or an EPUB's (ci, and the range a .. b of the chapter's text); c its colour, t its words, l its section
+const colorName = v => (typeof v === 'string' && /^[\w #(),.-]{1,40}$/.test(v) ? v : '');
+const index = v => (Number.isInteger(v) && v >= 0 && v < 1e9 ? v : null);
+function deskHighlight(h) {
+  if (!isObject(h)) return null;
+  const t = text(h.t).slice(0, 4000);
+  if (h.ci != null) {
+    const ci = index(h.ci), a = index(h.a), b = index(h.b);
+    if (ci == null || a == null || b == null || b <= a) return null;
+    return { ci, a, b, c: colorName(h.c), t, l: text(h.l).slice(0, 200) };
+  }
+  const p = index(h.p), b = index(h.b), bo = index(h.bo), e = index(h.e), eo = index(h.eo);
+  if ([p, b, bo, e, eo].includes(null) || p >= MAX_PAGES || e < b) return null;
+  return { p, b, bo, e, eo, c: colorName(h.c), t };
+}
 function byPage(obj, each, max) {
   const out = {};
   if (!isObject(obj)) return out;
@@ -72,6 +89,7 @@ export function normalizeDeskState(raw) {
   out.ink = byPage(raw.ink, stroke, MAX_STROKES);
   out.stickies = byPage(raw.stickies, sticky, MAX_NOTES);
   out.desk = Array.isArray(raw.desk) ? raw.desk.slice(0, MAX_NOTES).map(card).filter(Boolean) : [];
+  out.hl = Array.isArray(raw.hl) ? raw.hl.slice(0, MAX_STROKES).map(deskHighlight).filter(Boolean) : [];
   const xy = v => (isObject(v) && Number.isFinite(v.x) && Number.isFinite(v.y) ? { x: num(v.x, -1e6, 1e6, 0), y: num(v.y, -1e6, 1e6, 0) } : null);
   out.help = xy(raw.help);
   out.view = isObject(raw.view) && Number.isFinite(raw.view.z) && Number.isFinite(raw.view.cx) && Number.isFinite(raw.view.cy)

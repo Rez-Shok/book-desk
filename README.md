@@ -12,7 +12,8 @@ edges that show how far you are, a pen, a highlighter, sticky notes and index ca
 - **Write on the page** with the pen, draw with the highlighter, rub things out with the eraser.
 - **Highlight text.** A highlight is saved as a link in a note of yours, with the quoted words. The book file is never
   changed. The links use the format of [PDF++](https://github.com/RyotaUshio/obsidian-pdf-plus), so both plugins show
-  the same highlights. Click a highlight to open the note it lives in.
+  the same highlights. Click a highlight to open the note it lives in. A highlight you only copy, into no note, stays on
+  the desk.
 - **Stick notes on pages.** Each sticky note leaves a small flag on the page edge, so you can find the page again.
 - **Keep index cards** beside the book. Each card remembers the page it was written on.
 - **Search** the book, open its **contents**, and see everything you have marked in one **notes panel**.
@@ -22,8 +23,6 @@ edges that show how far you are, a pen, a highlighter, sticky notes and index ca
 - **Read EPUBs** as pages too, with the text size you like. Your place survives a change of text size.
 - **Right-to-left books** (Persian, Arabic, Hebrew) open with the spine on the right.
 - **Paper, sepia and night** page colours.
-- **Read on an [Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) drawing**: drag a book's `.desk`
-  file onto a drawing, or run **Put a book on this Excalidraw drawing**.
 
 ## How to start
 
@@ -58,7 +57,7 @@ as `fa`, `ar` or `he` opens the book right to left; without one, the desk looks 
 | What | Where |
 | --- | --- |
 | The page you are on, pen marks, sticky notes, cards, zoom | A small `.desk` file per book (JSON), in the desk folder you choose in the settings. It syncs with your vault. With Obsidian Sync, turn on **Sync all other types** in its settings, or desks stay on the device they were made on (EPUB files need it too). |
-| Text highlights | Links in your own notes. Delete the link and the highlight is gone. |
+| Text highlights | Links in your own notes. Delete the link and the highlight is gone. A highlight no note holds (you only copied it) is kept in the `.desk` file until its link is in a note. |
 | Settings | The plugin's own data file. |
 
 The book files themselves are only ever read. If a PDF is replaced by a shorter file (another edition, or a small
