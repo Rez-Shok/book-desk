@@ -38,6 +38,8 @@ try {
   const leaf = await openDesk(book), view = viewOf(leaf);
   ok('a book opens on its desk', view.getViewType() === 'book-desk' && view.ready && view.desk && view.file.extension === 'desk', [view.getViewType(), view.ready, view.file && view.file.path]);
   const deskFile = view.file;
+  const fill = view.contentEl.querySelector('.rdesk').getBoundingClientRect().width, tabWidth = view.contentEl.getBoundingClientRect().width;
+  ok('the desk fills its tab', fill > 300 && Math.abs(fill - tabWidth) < 1, [fill, tabWidth]);
   ok('the desk file is made in the desk folder, with the format version', deskFile.path === `${dir}/desks/Test Book.desk` && JSON.parse(await app.vault.read(deskFile)).v === 1, deskFile.path);
   ok('the same book opens the same desk again', (await P.deskFileFor(book)) === deskFile && (await P.allDeskBooks()).get(deskFile.path) === book.path, '');
   ok('the note\'s title names the tab', view.contentEl.querySelector('.rd-name').textContent === 'Test Book note', view.contentEl.querySelector('.rd-name').textContent);
@@ -201,6 +203,25 @@ try {
   const onPhone = await viaPdf('Phone Book', true), onComputer = await viaPdf('Computer Book', false);
   ok('on a phone, from the PDF\'s own tab, the desk opens in that tab', onPhone.found && onPhone.same && onPhone.desk, onPhone);
   ok('on a computer the PDF\'s tab stays and the desk gets a tab of its own', onComputer.found && !onComputer.same && onComputer.pdfStays && onComputer.desk, onComputer);
+
+  // ---- on an Excalidraw drawing (when Excalidraw is installed): the desk fills the box it is given ----
+  if (window.ExcalidrawAutomate) {
+    const db = await app.vault.createBinary(`${dir}/Drawing Book.pdf`, ab(F.pdf(4)));
+    const ea = window.ExcalidrawAutomate.getAPI();
+    ea.reset();
+    await ea.create({ filename: 'Desk drawing', foldername: dir, onNewPane: true });
+    let dl = null;
+    for (let k = 0; k < 40 && !dl; k++) { await wait(250); app.workspace.iterateAllLeaves(l => { if (l.view && l.view.getViewType() === 'excalidraw' && l.view.file && l.view.file.path.startsWith(dir)) dl = l; }); }
+    if (dl) {
+      mine.push(dl);
+      for (let k = 0; k < 40 && !dl.view.excalidrawAPI; k++) await wait(250);
+      await P.embedInDrawing(db, dl.view);
+      const er = await until(() => { const r = dl.view.containerEl.querySelector('.rdesk'); return r && r.querySelector('.rd-book') && r.classList.contains('rd-embedded') && r; }, 10000);   // (it knows it is on a drawing once it has opened)
+      const box = er && er.closest('.view-content'), tb = er && er.querySelector('.rd-toolbar');
+      ok('on an Excalidraw drawing the desk fills its box, the toolbar in one row', !!er && er.classList.contains('rd-embedded') && er.getBoundingClientRect().width > 300 && Math.abs(er.getBoundingClientRect().width - box.getBoundingClientRect().width) < 1 && tb.getBoundingClientRect().height < 80,
+        er && [er.className, er.getBoundingClientRect().width, box.getBoundingClientRect().width, tb.getBoundingClientRect().height]);
+    } else ok('an Excalidraw drawing could be made for the test', false, '');
+  }
 
   // ---- the guide ----
   const g1 = document.createElement('div'), g2 = document.createElement('div');

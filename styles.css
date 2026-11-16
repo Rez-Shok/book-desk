@@ -21,7 +21,9 @@
   --background-modifier-active-hover: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
   --text-normal: #222222; --text-muted: #5c5c5c; --text-faint: #ababab; --icon-color: #5c5c5c; --icon-color-hover: #222222;
   color-scheme: light; color: var(--text-normal);
-  display: flex; flex-direction: column; height: 100%;
+  /* the whole of its box, also where that box lays its children out as flex (a desk on an Excalidraw drawing):
+     the desk's own content is placed absolutely and would give it no width at all */
+  display: flex; flex-direction: column; height: 100%; width: 100%; min-width: 0; flex: 1 1 auto;
 }
 
 /* ---------- toolbar ---------- */
