@@ -1,0 +1,68 @@
+name: Something does not work
+description: A book that will not open, a highlight in the wrong place, a tool that does nothing…
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for taking the time. The more exactly you can say what happened, the sooner it can be put right.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: I selected two lines of a Persian PDF with the Select tool, and the copied text came out reversed.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Open the book on the desk
+        2. …
+  - type: dropdown
+    id: book
+    attributes:
+      label: Kind of book
+      options: [PDF, EPUB, Both, Not about a book]
+    validations:
+      required: true
+  - type: input
+    id: which-book
+    attributes:
+      label: Which book (if you may share it)
+      description: A book in the public domain, or a link to where it can be had, helps the most. Never attach a book you may not share.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Device
+      multiple: true
+      options: [macOS, Windows, Linux, iPhone, iPad, Android]
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Book Desk version
+      description: Settings → Community plugins → Book Desk.
+      placeholder: 1.0.15
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: Settings → General.
+    validations:
+      required: true
+  - type: textarea
+    id: errors
+    attributes:
+      label: Errors in the developer console (if any)
+      description: On a computer, View → Toggle Developer Tools → Console. Copy the red lines that mention Book Desk.
+      render: text
+  - type: textarea
+    id: pictures
+    attributes:
+      label: Screenshots or a short screen recording
+      description: Drag them here. Check that they show nothing private.

@@ -1,0 +1,25 @@
+# Every push and pull request: the rules of Obsidian's own review, the unit tests, and a build.
+# (The tests in tests/app run inside Obsidian itself, so they are run by hand: see CONTRIBUTING.md.)
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

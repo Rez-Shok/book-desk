@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default defineConfig([
-  globalIgnores(['node_modules', 'main.js', 'tests', 'esbuild.config.mjs', 'eslint.config.mjs']),
+  globalIgnores(['node_modules', 'main.js', 'tests', 'scripts', 'esbuild.config.mjs', 'eslint.config.mjs']),
   ...obsidianmd.configs.recommended,
   {
     files: ['src/**/*.js'],

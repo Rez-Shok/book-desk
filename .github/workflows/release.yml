@@ -1,0 +1,49 @@
+# A version tag (1.2.3) builds the plugin here, signs what was built (artifact attestation: anyone can check that
+# main.js, manifest.json and styles.css come from this repository at this tag) and publishes the release.
+# A tag with a hyphen (1.2.3-beta.1) is published as a pre-release with manifest-beta.json, for testers using BRAT.
+# The release notes are the tag's message: git tag -a 1.2.3 -m "What changed".
+name: Release
+
+on:
+  push:
+    tags: ['*.*.*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the tag with its message
+        run: git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Check that the tag is the version in the manifest
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then manifest=manifest-beta.json; else manifest=manifest.json; fi
+          version=$(node -p "require('./$manifest').version")
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then echo "The tag $GITHUB_REF_NAME is not the version in $manifest ($version)"; exit 1; fi
+          mkdir release
+          cp main.js styles.css release/
+          cp "$manifest" release/manifest.json
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/*
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" release/main.js release/manifest.json release/styles.css \
+            --title "$GITHUB_REF_NAME" --notes-from-tag --verify-tag "${flags[@]}"
