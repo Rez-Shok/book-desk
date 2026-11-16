@@ -1,5 +1,6 @@
 /* Book Desk */
-.rdesk-host { padding: 0 !important; overflow: hidden !important; }
+/* the view's own padding and scrolling give way to the desk (a selector more specific than Obsidian's own) */
+.workspace-leaf-content[data-type="book-desk"] > .view-content.rdesk-host, .view-content.rdesk-host { padding: 0; overflow: hidden; }
 .rdesk-host > div:not(.rd-loading) { height: 100%; }
 .rd-loading { padding: 40px 24px; color: var(--text-muted); text-align: center; }
 .rd-stub p { max-width: 46ch; margin: 0 auto 16px; line-height: 1.8; color: var(--text-normal); }
@@ -337,7 +338,7 @@ svg.rd-ink path.hl { mix-blend-mode: multiply; opacity: .45; stroke-linecap: squ
 .rd-epub-page { position: absolute; inset: 0; overflow: hidden; background: #fffefb; color: #1d1b18; }
 .theme-dark .rdesk:not(.rd-paper-night):not(.rd-paper-sepia) .rd-epub-page { filter: brightness(.93) sepia(.08); }
 .rd-book.rtl .rd-epub-page { transform: scaleX(-1); }
-.rd-epub-clip { position: absolute; overflow: hidden; overflow: clip; contain: layout paint; }   /* whatever the book's styles say, nothing leaves the page */
+.rd-epub-clip { position: absolute; overflow: clip; contain: layout paint; }   /* whatever the book's styles say, nothing leaves the page */
 .rd-epub-measure { position: fixed; left: -40000px; top: 0; width: var(--epub-w); height: var(--epub-colh); overflow: hidden; visibility: hidden; }
 /* every property that moves a line is fixed here, so the pages measured off-screen are the pages shown */
 .rd-epub-flow {
